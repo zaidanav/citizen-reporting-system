@@ -75,31 +75,31 @@ We provide a `runner.ps1` script to simplify container management without typing
 1. **Starting the System (Up)**
 Start all infrastructure (DB, Queue, Services) in the background.
 ```powershell
-.\runner.ps1 -Task up
+.\runner.ps1 up
 ```
 
 2. **Checking Status (Check)**
 Ensure all containers are running healthily.
 ```powershell
-.\runner.ps1 -Task ps
+.\runner.ps1 ps
 ```
 
 3. **Viewing Logs (Debug)**
 View activity logs from all services in real-time.
 ```powershell
-.\runner.ps1 -Task logs
+.\runner.ps1 logs
 ```
 
 4. **Stopping the System (Down)**
 Stop and clean up containers.
 ```powershell
-.\runner.ps1 -Task down
+.\runner.ps1 down
 ```
 
 5. **Restarting the System**
 Restart all services and display access URLs & credentials.
 ```powershell
-.\runner.ps1 -Task restart
+.\runner.ps1 restart
 ```
 
 6. **Accessing Container Shell (Shortcut)** 🆕
