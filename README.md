@@ -96,6 +96,24 @@ Stop and clean up containers.
 .\runner.ps1 -Task down
 ```
 
+5. **Restarting the System**
+Restart all services and display access URLs & credentials.
+```powershell
+.\runner.ps1 -Task restart
+```
+
+6. **Accessing Container Shell (Shortcut)** 🆕
+Directly enter a container's terminal without looking up container IDs.
+*Supported targets: `postgres` (or `db`), `mongo`, `rabbit` (or `mq`), `minio` (or `s3`), `grafana`.*
+```powershell
+# Example: Enter MongoDB shell
+.\runner.ps1 shell mongo
+
+# Example: Enter Postgres shell
+.\runner.ps1 shell db
+```
+
+> **Note:** When running `up` or `restart`, the script will automatically print a table containing **Service URLs and Login Credentials** for your convenience.
 ---
 
 ## 💻 Tech Stack
