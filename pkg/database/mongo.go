@@ -9,19 +9,21 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func ConnectMongo(uri string) (*mongo.Client, error) {
+func ConnectMongo(uri string, dbName string) (*mongo.Database, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
+	clientOptions := options.Client().ApplyURI(uri)
+
+	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to mongo: %w", err)
+		return nil, fmt.Errorf("❌ failed to connect to mongo: %w", err)
+	}
+	err = client.Ping(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("❌ failed to ping mongo: %w", err)
 	}
 
-	// Check connection
-	if err := client.Ping(ctx, nil); err != nil {
-		return nil, fmt.Errorf("failed to ping mongo: %w", err)
-	}
-
-	return client, nil
+	fmt.Println("✅ Successfully connected to MongoDB!")
+	return client.Database(dbName), nil
 }
