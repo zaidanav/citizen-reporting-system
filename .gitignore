@@ -22,3 +22,27 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Temporary/Test Scripts
+test_db.go
+_test.go
+tmp/
+temp/
+
+# Go Test & Coverage Reports
+*.out
+coverage.txt
+profile.out
+
+# Security Keys
+*.pem
+*.key
+*.crt
+*.csr
+
+# Local Data Directories
+postgres_data/
+mongo_data/
+minio_data/
+rabbitmq_data/
+data/
