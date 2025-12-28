@@ -1,0 +1,24 @@
+# Binaries & Builds
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+/bin/
+dist/
+node_modules/
+vendor/
+
+# Environment Variables (SENSITIVE)
+.env
+*.env
+
+# IDE & OS Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
