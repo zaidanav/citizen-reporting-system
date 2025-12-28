@@ -9,10 +9,28 @@ param(
 function Show-AccessInfo {
     Write-Host "`n✅ Services are UP & Running! Access them here:" -ForegroundColor Cyan
     Write-Host "===========================================================" -ForegroundColor Gray
-    Write-Host " 🐰 RabbitMQ     : " -NoNewline; Write-Host "http://localhost:15672" -ForegroundColor Green
-    Write-Host " 🗄️  MinIO        : " -NoNewline; Write-Host "http://localhost:9001" -ForegroundColor Green
-    Write-Host " 📊 Grafana      : " -NoNewline; Write-Host "http://localhost:3000" -ForegroundColor Green
-    Write-Host " 📈 Prometheus   : " -NoNewline; Write-Host "http://localhost:9090" -ForegroundColor Green
+    
+    # RabbitMQ
+    Write-Host " 🐰 RabbitMQ Console : " -NoNewline; Write-Host "http://localhost:15672" -ForegroundColor Green
+    Write-Host "    (User: guest | Pass: guest)" -ForegroundColor DarkGray
+    
+    # MinIO
+    Write-Host " 🗄️  MinIO Console    : " -NoNewline; Write-Host "http://localhost:9001" -ForegroundColor Green
+    Write-Host "    (User: minioadmin | Pass: minioadmin)" -ForegroundColor DarkGray
+    
+    # Grafana
+    Write-Host " 📊 Grafana Dash     : " -NoNewline; Write-Host "http://localhost:3000" -ForegroundColor Green
+    Write-Host "    (User: admin | Pass: admin)" -ForegroundColor DarkGray
+    
+    # Prometheus
+    Write-Host " 📈 Prometheus       : " -NoNewline; Write-Host "http://localhost:9090" -ForegroundColor Green
+    Write-Host "    (Monitoring Metrics)" -ForegroundColor DarkGray
+
+    # Database Info
+    Write-Host "`n 🛢️  Database Connections:" -ForegroundColor Yellow
+    Write-Host "    🐘 Postgres : localhost:5432  (User: admin | Pass: password)" -ForegroundColor Gray
+    Write-Host "    🍃 MongoDB  : localhost:27017 (User: admin | Pass: password)" -ForegroundColor Gray
+    
     Write-Host "===========================================================" -ForegroundColor Gray
 }
 
@@ -70,6 +88,9 @@ switch ($Task) {
 
         Write-Host "🚀 Masuk ke container: $ContainerName ($ShellCmd)..." -ForegroundColor Cyan
         docker exec -it $ContainerName $ShellCmd
+    }
+    "link" {
+        Show-AccessInfo
     }
 
     Default {
