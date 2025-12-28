@@ -82,6 +82,7 @@ func main() {
 
 // Forwarding to Department
 func sendToDepartment(r ReportEvent, departmentName string) {
+	// TODO: Implement department routing logic to real services
 	log.Printf("🚀 [ROUTING] Report '%s' forwarded to: >> %s <<", r.Title, departmentName)
 	log.Printf("Detail: %s (By: %s)", r.Description, r.Reporter)
 }

@@ -95,6 +95,7 @@ services:
       - prometheus
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning
     networks:
       - lapcw-network
 
