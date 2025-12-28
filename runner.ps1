@@ -89,8 +89,25 @@ switch ($Task) {
         Write-Host "🚀 Masuk ke container: $ContainerName ($ShellCmd)..." -ForegroundColor Cyan
         docker exec -it $ContainerName $ShellCmd
     }
+    
     "link" {
         Show-AccessInfo
+    }
+
+    "init-storage" {
+        Write-Host "🗄️  Configuring MinIO Storage..." -ForegroundColor Cyan
+        
+        if (!(docker ps -q -f name=lapcw-minio)) {
+            Write-Host "❌ Container MinIO not running. Run 'up' first!" -ForegroundColor Red
+            return
+        }
+
+        docker exec lapcw-minio mc alias set local http://localhost:9000 minioadmin minioadmin | Out-Null
+        docker exec lapcw-minio mc mb local/laporan-warga --ignore-existing | Out-Null
+        Write-Host "   - Bucket 'laporan-warga' ensured." -ForegroundColor Gray
+
+        docker exec lapcw-minio mc anonymous set public local/laporan-warga
+        Write-Host "✅ Success! Bucket 'laporan-warga' is now PUBLIC." -ForegroundColor Green
     }
 
     Default {
@@ -98,9 +115,11 @@ switch ($Task) {
         Write-Host "Available Tasks:"
         Write-Host "  up             : Start infrastructure"
         Write-Host "  down           : Stop infrastructure"
-        Write-Host "  shell [name]   : Masuk ke container (Ex: shell postgres)"
+        Write-Host "  shell [name]   : Access container (Ex: shell postgres)"
         Write-Host "  logs           : View logs"
         Write-Host "  ps             : Check status"
+        Write-Host "  link           : Show access info"
+        Write-Host "  init-storage   : Initialize MinIO storage"
         Write-Host "------------------------------------------------"
         Write-Host "Example: .\runner.ps1 shell mongo" -ForegroundColor Yellow
     }
