@@ -50,6 +50,9 @@ func main() {
 			err := json.Unmarshal(d.Body, &report)
 			if err != nil {
 				log.Printf("⚠️ Error parsing JSON: %v", err)
+				// TODO: Implement Dead Letter Queue (DLQ) strategy
+				// If JSON format violates standards, move message to 'report_dlq'
+				// so it doesn't block the queue.
 				continue
 			}
 
@@ -61,6 +64,8 @@ func main() {
 			}
 
 			// Routing to Department (Business Logic)
+			// TODO: Validate Required Fields
+			// Ensure 'Category' and 'Description' match the contract
 			switch report.Category {
 			case "Sampah":
 				sendToDepartment(report, "DINAS KEBERSIHAN")
@@ -71,6 +76,14 @@ func main() {
 			default:
 				sendToDepartment(report, "PEMDA PUSAT (KATEGORI UMUM)")
 			}
+			
+			// TODO: IMPLEMENT - Notification Trigger
+			// Call Notification Service (via RabbitMQ/HTTP) to alert the user:
+			// "Laporan Anda sedang diproses oleh [Nama Dinas]"
+			
+			// TODO: IMPLEMENT - Status Update
+			// Call Report Service API (PUT /reports/{id}/status)
+			// Update status from 'PENDING' to 'IN_PROGRESS' in Postgres.
 
 			log.Println("---------------------------------------------------")
 		}
@@ -82,7 +95,8 @@ func main() {
 
 // Forwarding to Department
 func sendToDepartment(r ReportEvent, departmentName string) {
-	// TODO: Implement department routing logic to real services
+	// TODO: IMPLEMENT - Circuit Breaker / Retry Logic
+	// TODO: IMPLEMENT - External API Call
 	log.Printf("🚀 [ROUTING] Report '%s' forwarded to: >> %s <<", r.Title, departmentName)
 	log.Printf("Detail: %s (By: %s)", r.Description, r.Reporter)
 }
