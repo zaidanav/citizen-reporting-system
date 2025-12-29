@@ -93,11 +93,16 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var nikPtr *string
+	if input.NIK != "" {
+		nikPtr = &input.NIK
+	}
+
 	newUser := models.User{
 		Email:    input.Email,
 		Password: hashedPassword,
 		Name:     input.Name,
-		NIK:      input.NIK,
+		NIK:      nikPtr,
 		Phone:    input.Phone,
 		Role:     "citizen",
 	}

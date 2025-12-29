@@ -41,7 +41,7 @@ func main() {
 	var err error
 	db, err = database.ConnectMongo(mongoURI, "report_db")
 	if err != nil {
-		log.Fatalf("❌ Failed to connect to MongoDB: %v", err)
+		log.Fatalf("[ERROR] Failed to connect to MongoDB: %v", err)
 	}
 
 	amqpURI := fmt.Sprintf("amqp://%s:%s@%s:%s/",
@@ -56,21 +56,39 @@ func main() {
 
 	conn, ch, err := queue.ConnectRabbitMQ(amqpURI)
 	if err != nil {
-		log.Fatalf("❌ Failed to connect to RabbitMQ: %v", err)
+		log.Fatalf("[ERROR] Failed to connect to RabbitMQ: %v", err)
 	}
 	defer conn.Close()
 	defer ch.Close()
 	amqpChannel = ch
-	log.Println("✅ Connected to RabbitMQ!")
+	log.Println("[OK] Connected to RabbitMQ")
 
 	http.HandleFunc("/api/reports", middleware.LoggerMiddleware(middleware.AuthMiddleware(reportsHandler)).ServeHTTP)
+	http.HandleFunc("/api/reports/mine", middleware.LoggerMiddleware(middleware.AuthMiddleware(myReportsHandler)).ServeHTTP)
 	http.HandleFunc("/api/reports/", middleware.LoggerMiddleware(middleware.AuthMiddleware(reportDetailHandler)).ServeHTTP)
 	http.HandleFunc("/internal/updates", middleware.LoggerMiddleware(http.HandlerFunc(internalUpdateStatusHandler)).ServeHTTP)
 
 	port := ":8082"
-	log.Printf("🚀 Report Service running on port %s", port)
+	log.Printf("[INFO] Report Service running on port %s", port)
 	if err := http.ListenAndServe(port, nil); err != nil {
-		log.Fatalf("❌ Server failed: %v", err)
+		log.Fatalf("[ERROR] Server failed: %v", err)
+	}
+}
+
+// maskAnonymousReporter hides reporter name for anonymous reports
+func maskAnonymousReporter(reports []models.Report) []models.Report {
+	for i := range reports {
+		if reports[i].IsAnonymous {
+			reports[i].Reporter = "Pelapor Anonim"
+		}
+	}
+	return reports
+}
+
+// maskAnonymousReporterSingle hides reporter name for single anonymous report
+func maskAnonymousReporterSingle(report *models.Report) {
+	if report.IsAnonymous {
+		report.Reporter = "Pelapor Anonim"
 	}
 }
 
@@ -113,7 +131,11 @@ func createReport(w http.ResponseWriter, r *http.Request) {
 		Title       string `json:"title"`
 		Description string `json:"description"`
 		Category    string `json:"category"`
-		IsAnonymous bool   `json:"is_anonymous"`
+		Location    string `json:"location"`
+		ImageUrl    string `json:"imageUrl"`
+		Privacy     string `json:"privacy"` // "public", "private", "anonymous"
+		IsAnonymous bool   `json:"isAnonymous"`
+		IsPublic    bool   `json:"isPublic"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -126,15 +148,34 @@ func createReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Determine public/anonymous based on privacy field
+	isPublic := true
+	isAnon := false
+
+	if input.Privacy == "private" {
+		isPublic = false
+		isAnon = false
+	} else if input.Privacy == "anonymous" {
+		isPublic = true
+		isAnon = true
+	}
+	// else default "public" - isPublic=true, isAnon=false
+
+	log.Printf("[INFO] Creating report - Privacy: %s, IsPublic: %v, IsAnonymous: %v", input.Privacy, isPublic, isAnon)
+
 	newReport := models.Report{
 		ID:          primitive.NewObjectID(),
 		Title:       input.Title,
 		Description: input.Description,
 		Category:    input.Category,
-		IsAnonymous: input.IsAnonymous,
+		Location:    input.Location,
+		ImageURL:    input.ImageUrl,
+		IsAnonymous: isAnon,
+		IsPublic:    isPublic,
 		ReporterID:  claims.UserID,
 		Reporter:    claims.Email,
-		Status:      "PENDING",
+		Status:      "pending",
+		Upvotes:     0,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
@@ -147,6 +188,8 @@ func createReport(w http.ResponseWriter, r *http.Request) {
 		response.Error(w, http.StatusInternalServerError, "Failed to save report", err.Error())
 		return
 	}
+
+	log.Printf("[OK] Report saved - ID: %s, IsPublic: %v, IsAnonymous: %v", newReport.ID.Hex(), newReport.IsPublic, newReport.IsAnonymous)
 
 	event := models.ReportEvent{
 		ID:          newReport.ID.Hex(),
@@ -161,9 +204,9 @@ func createReport(w http.ResponseWriter, r *http.Request) {
 
 	err = queue.PublishMessage(amqpChannel, queueName, event)
 	if err != nil {
-		log.Printf("⚠️ Report saved but failed to publish event: %v", err)
+		log.Printf("[WARN] Report saved but failed to publish event: %v", err)
 	} else {
-		log.Printf("📤 Event published to '%s'", queueName)
+		log.Printf("[INFO] Event published to '%s'", queueName)
 	}
 
 	response.Success(w, http.StatusCreated, "Report created successfully", newReport)
@@ -173,7 +216,9 @@ func getReports(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	filter := bson.M{}
+	filter := bson.M{
+		"is_public": true, // Only return public reports
+	}
 	status := r.URL.Query().Get("status")
 	if status != "" {
 		filter["status"] = status
@@ -192,7 +237,51 @@ func getReports(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Mask anonymous reporters
+	reports = maskAnonymousReporter(reports)
 	response.Success(w, http.StatusOK, "Reports fetched successfully", reports)
+}
+
+func myReportsHandler(w http.ResponseWriter, r *http.Request) {
+	claims, ok := r.Context().Value(middleware.UserContextKey).(*middleware.UserClaims)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "Unauthorized", "")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Filter by user's ID - return all reports (public and private) of this user
+	filter := bson.M{
+		"reporter_id": claims.UserID,
+	}
+	status := r.URL.Query().Get("status")
+	if status != "" {
+		filter["status"] = status
+	}
+
+	cursor, err := db.Collection("reports").Find(ctx, filter)
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to fetch reports", err.Error())
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var reports []models.Report
+	if err := cursor.All(ctx, &reports); err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to decode reports", err.Error())
+		return
+	}
+
+	// Debug logging
+	for _, r := range reports {
+		log.Printf("[DEBUG] MyReport - ID: %s, IsPublic: %v, IsAnonymous: %v", r.ID.Hex(), r.IsPublic, r.IsAnonymous)
+	}
+
+	// Note: For user's own reports, we show the full name even if anonymous
+	// because they need to see their own anonymous reports properly
+	response.Success(w, http.StatusOK, "User reports fetched successfully", reports)
 }
 
 func getReportByID(w http.ResponseWriter, r *http.Request, id string) {
@@ -216,6 +305,8 @@ func getReportByID(w http.ResponseWriter, r *http.Request, id string) {
 		return
 	}
 
+	// Mask anonymous reporter name
+	maskAnonymousReporterSingle(&report)
 	response.Success(w, http.StatusOK, "Report fetched successfully", report)
 }
 
