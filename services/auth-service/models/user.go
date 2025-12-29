@@ -12,7 +12,7 @@ type User struct {
 	Password  string         `gorm:"not null" json:"-"`
 	Name      string         `gorm:"not null" json:"name"`
 	Role      string         `gorm:"default:'citizen'" json:"role"`
-	NIK       string         `gorm:"uniqueIndex" json:"nik,omitempty"`
+	NIK       *string        `gorm:"uniqueIndex" json:"nik,omitempty"`
 	Phone     string         `json:"phone,omitempty"`
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
