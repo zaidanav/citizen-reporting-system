@@ -19,6 +19,19 @@
   color: var(--text-secondary);
 }
 
+.dashboard-department-badge {
+  display: inline-block;
+  margin-top: var(--spacing-sm);
+  padding: 8px 16px;
+  background-color: var(--accent-info);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 /* Stats Grid - Solid Colors */
 .stats-grid {
   display: grid;

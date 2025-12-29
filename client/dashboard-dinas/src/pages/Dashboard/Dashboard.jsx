@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { reportService } from '../../services/reportService';
 import { getDepartmentFromStorage } from '../../utils/jwtHelper';
+import { notificationService } from '../../components/Toast';
 import './Dashboard.css';
 
 const Dashboard = () => {
@@ -24,6 +25,19 @@ const Dashboard = () => {
     return () => clearInterval(interval);
   }, [filter, department]);
 
+  // Department category mapping for access control
+  const getCategoryFilterForDepartment = (dept) => {
+    const departmentCategories = {
+      'pekerjaan-umum': ['Jalan Rusak', 'Drainase', 'Fasilitas Umum'],
+      'kebersihan': ['Sampah'],
+      'penerangan': ['Penerangan'],
+      'lingkungan-hidup': ['Sampah', 'Drainase'],
+      'perhubungan': ['Jalan Rusak'],
+      'general': null, // Admin umum bisa melihat semua
+    };
+    return departmentCategories[dept] || null;
+  };
+
   const loadReports = async () => {
     try {
       setLoading(true);
@@ -32,11 +46,31 @@ const Dashboard = () => {
         timeRange: '30d', // Default to 30 days
       };
       
+      // Add category filter based on department
+      const allowedCategories = getCategoryFilterForDepartment(department);
+      if (allowedCategories) {
+        filters.categories = allowedCategories.join(',');
+      }
+      
       const reportsData = await reportService.getAllReports(filters);
       console.log('[Dashboard] Reports loaded:', reportsData);
-      setReports(Array.isArray(reportsData) ? reportsData : []);
+      
+      // Client-side filter as additional layer (defense in depth)
+      let filteredReports = Array.isArray(reportsData) ? reportsData : [];
+      if (allowedCategories) {
+        filteredReports = filteredReports.filter(report => 
+          allowedCategories.includes(report.category)
+        );
+      }
+      
+      setReports(filteredReports);
     } catch (error) {
       console.error('Error loading reports:', error);
+      notificationService.addNotification({
+        type: 'error',
+        title: 'Gagal Memuat Laporan',
+        message: 'Terjadi kesalahan saat memuat data laporan',
+      });
       setReports([]);
     } finally {
       setLoading(false);
@@ -59,9 +93,19 @@ const Dashboard = () => {
             : report
         )
       );
+      
+      notificationService.addNotification({
+        type: 'success',
+        title: 'Status Diperbarui',
+        message: `Status laporan berhasil diubah menjadi ${getStatusLabel(newStatus)}`,
+      });
     } catch (error) {
       console.error('Error updating status:', error);
-      alert('Gagal memperbarui status');
+      notificationService.addNotification({
+        type: 'error',
+        title: 'Gagal Memperbarui Status',
+        message: error.response?.data?.message || 'Terjadi kesalahan saat memperbarui status',
+      });
     } finally {
       setUpdatingId(null);
     }
@@ -81,8 +125,15 @@ const Dashboard = () => {
   return (
     <div className="dashboard-page">
       <div className="dashboard-header">
-        <h1 className="dashboard-title">Dashboard Operasional</h1>
-        <p className="dashboard-subtitle">Kelola laporan warga secara real-time</p>
+        <div>
+          <h1 className="dashboard-title">Dashboard Operasional</h1>
+          <p className="dashboard-subtitle">Kelola laporan warga secara real-time</p>
+          {department !== 'general' && (
+            <div className="dashboard-department-badge">
+              Dinas: {getDepartmentLabel(department)}
+            </div>
+          )}
+        </div>
       </div>
       
       {/* Stats Cards */}
@@ -280,4 +331,4 @@ const ReportRow = ({ report, onStatusUpdate, isUpdating }) => {
   );
 };
 
-export default Dashboard;
+const getFilterLabel = (filter) => {\n  const labels = {\n    pending: 'Menunggu',\n    'in-progress': 'Diproses',\n    completed: 'Selesai',\n  };\n  return labels[filter] || filter;\n};\n\nconst getDepartmentLabel = (dept) => {\n  const labels = {\n    'pekerjaan-umum': 'Pekerjaan Umum',\n    'kebersihan': 'Kebersihan',\n    'penerangan': 'Penerangan Jalan',\n    'lingkungan-hidup': 'Lingkungan Hidup',\n    'perhubungan': 'Perhubungan',\n    'general': 'Umum',\n  };\n  return labels[dept] || dept;\n};\n\nexport default Dashboard;

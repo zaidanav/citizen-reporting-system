@@ -160,6 +160,7 @@
 .upvote-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--spacing-sm);
   padding: 10px 20px;
   background-color: var(--bg-tertiary);
@@ -182,19 +183,29 @@
   border-color: var(--accent-primary);
 }
 
+.upvote-btn--loading {
+  opacity: 0.7;
+}
+
 .upvote-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.upvote-btn__icon {
-  font-size: 18px;
+.upvote-btn__text {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
 }
 
-.upvote-btn__count {
-  font-weight: 700;
-  min-width: 24px;
-  text-align: center;
+/* Small Spinner for Upvote Loading */
+.spinner-small {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--bg-tertiary);
+  border-top-color: var(--text-primary);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
 }
 
 /* Mobile Responsive */

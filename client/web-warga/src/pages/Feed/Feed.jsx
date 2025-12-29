@@ -50,12 +50,65 @@ const Feed = () => {
   };
 
   const handleUpvote = async (reportId, hasUpvoted) => {
-    // Upvote endpoint not yet implemented in backend
-    addNotification({
-      type: 'info',
-      title: 'Fitur Dukungan',
-      message: 'Fitur upvote sedang dalam tahap pengembangan',
-    });
+    // Prevent multiple simultaneous upvotes
+    if (upvotingIds.has(reportId)) return;
+    
+    setUpvotingIds((prev) => new Set([...prev, reportId]));
+    
+    try {
+      // Optimistic UI update
+      setReports((prev) =>
+        prev.map((report) =>
+          report.id === reportId
+            ? {
+                ...report,
+                hasUpvoted: !hasUpvoted,
+                upvotes: hasUpvoted ? report.upvotes - 1 : report.upvotes + 1,
+              }
+            : report
+        )
+      );
+      
+      // Call backend API
+      if (hasUpvoted) {
+        await reportService.removeUpvote(reportId);
+      } else {
+        await reportService.upvoteReport(reportId);
+      }
+      
+      addNotification({
+        type: 'success',
+        title: hasUpvoted ? 'Dukungan Dibatalkan' : 'Laporan Didukung',
+        message: hasUpvoted ? 'Dukungan Anda telah dibatalkan' : 'Terima kasih atas dukungan Anda!',
+      });
+    } catch (error) {
+      console.error('Error upvoting report:', error);
+      
+      // Revert optimistic update on error
+      setReports((prev) =>
+        prev.map((report) =>
+          report.id === reportId
+            ? {
+                ...report,
+                hasUpvoted: hasUpvoted,
+                upvotes: hasUpvoted ? report.upvotes + 1 : report.upvotes - 1,
+              }
+            : report
+        )
+      );
+      
+      addNotification({
+        type: 'error',
+        title: 'Gagal Memberikan Dukungan',
+        message: error.response?.data?.message || 'Terjadi kesalahan saat memberikan dukungan',
+      });
+    } finally {
+      setUpvotingIds((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(reportId);
+        return newSet;
+      });
+    }
   };
 
   const handleLoadMore = () => {
@@ -141,6 +194,8 @@ const ReportCard = ({ report, onUpvote, isUpvoting }) => {
     isAnonymous,
     createdAt,
   } = report;
+  
+  const displayAuthorName = authorName || reporterName || 'Pengguna';
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -197,13 +252,20 @@ const ReportCard = ({ report, onUpvote, isUpvoting }) => {
       
       <div className="report-card__footer">
         <button
-          className={`upvote-btn ${hasUpvoted ? 'upvote-btn--active' : ''}`}
+          className={`upvote-btn ${hasUpvoted ? 'upvote-btn--active' : ''} ${isUpvoting ? 'upvote-btn--loading' : ''}`}
           onClick={() => onUpvote(id, hasUpvoted)}
           disabled={isUpvoting}
         >
-          <span className="upvote-btn__text">
-            {hasUpvoted ? 'Didukung' : 'Dukung'} ({upvotes})
-          </span>
+          {isUpvoting ? (
+            <span className="upvote-btn__text">
+              <div className="spinner-small"></div>
+              Memproses...
+            </span>
+          ) : (
+            <span className="upvote-btn__text">
+              {hasUpvoted ? '✓ Didukung' : '↑ Dukung'} ({upvotes})
+            </span>
+          )}
         </button>
       </div>
     </Card>

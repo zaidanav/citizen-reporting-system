@@ -21,11 +21,11 @@ func CheckPasswordHash(password, hash string) bool {
 
 func GenerateJWT(userID, email, role, department string) (string, error) {
 	claims := jwt.MapClaims{
-		"user_id":   userID,
-		"email":     email,
-		"role":      role,
+		"user_id":    userID,
+		"email":      email,
+		"role":       role,
 		"department": department,
-		"exp":       time.Now().Add(time.Hour * 24).Unix(),
+		"exp":        time.Now().Add(time.Hour * 24).Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
