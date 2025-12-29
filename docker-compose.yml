@@ -161,6 +161,26 @@ services:
     networks:
       - lapcw-network
 
+  notification-service:
+    build:
+      context: .
+      dockerfile: services/notification-service/Dockerfile
+    container_name: lapcw-notification-service
+    restart: always
+    ports:
+      - "8084:8084"
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=guest
+      - RABBITMQ_PASS=guest
+      - NOTIFICATION_PORT=8084
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - lapcw-network
+
   dispatcher-service:
     build:
       context: .

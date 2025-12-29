@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import useNotificationSubscription from './hooks/useNotificationSubscription';
 import Dashboard from './pages/Dashboard';
 import Analytics from './pages/Analytics';
 import Login from './pages/Login';
@@ -9,6 +10,9 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = React.useState(() => {
     return !!localStorage.getItem('admin_token');
   });
+
+  // Subscribe to real-time notifications
+  useNotificationSubscription();
 
   return (
     <BrowserRouter>

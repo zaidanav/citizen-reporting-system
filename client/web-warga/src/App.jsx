@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import { notificationService } from './services/notificationService';
+import useNotificationSubscription from './hooks/useNotificationSubscription';
 import Toast from './components/Toast';
 import Login from './pages/Login';
 import Feed from './pages/Feed';
@@ -11,6 +12,9 @@ import Layout from './components/Layout';
 
 function App() {
   const { isAuthenticated, token } = useAuthStore();
+  
+  // Subscribe to real-time notifications
+  useNotificationSubscription();
 
   useEffect(() => {
     // Connect WebSocket on app load if authenticated

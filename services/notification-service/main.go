@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -9,8 +8,6 @@ import (
 	"os"
 	"sync"
 	"time"
-
-	"citizen-reporting-system/pkg/queue"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -32,11 +29,11 @@ type Client struct {
 }
 
 var (
-	clients   = make(map[*Client]bool)
-	broadcast = make(chan NotificationEvent, 100)
-	register  = make(chan *Client)
+	clients    = make(map[*Client]bool)
+	broadcast  = make(chan NotificationEvent, 100)
+	register   = make(chan *Client)
 	unregister = make(chan *Client)
-	mu        sync.RWMutex
+	mu         sync.RWMutex
 )
 
 func main() {
@@ -191,7 +188,7 @@ func subscribeHandler(w http.ResponseWriter, r *http.Request) {
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
-		"status": "healthy",
+		"status":  "healthy",
 		"service": "notification-service",
 	})
 }

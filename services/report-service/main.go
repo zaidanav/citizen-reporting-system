@@ -67,9 +67,10 @@ func main() {
 	http.HandleFunc("/api/reports/mine", middleware.LoggerMiddleware(middleware.AuthMiddleware(myReportsHandler)).ServeHTTP)
 	http.HandleFunc("/api/reports/", middleware.LoggerMiddleware(middleware.AuthMiddleware(reportDetailHandler)).ServeHTTP)
 	http.HandleFunc("/internal/updates", middleware.LoggerMiddleware(http.HandlerFunc(internalUpdateStatusHandler)).ServeHTTP)
-	
+
 	// Admin endpoints (no auth required for now, can be protected later)
 	http.HandleFunc("/admin/reports", middleware.LoggerMiddleware(http.HandlerFunc(adminReportsHandler)).ServeHTTP)
+	http.HandleFunc("/admin/reports/", middleware.LoggerMiddleware(http.HandlerFunc(adminReportDetailHandler)).ServeHTTP)
 	http.HandleFunc("/admin/analytics", middleware.LoggerMiddleware(http.HandlerFunc(adminAnalyticsHandler)).ServeHTTP)
 
 	port := ":8082"
@@ -314,6 +315,58 @@ func getReportByID(w http.ResponseWriter, r *http.Request, id string) {
 	response.Success(w, http.StatusOK, "Report fetched successfully", report)
 }
 
+// publishNotificationEvent publishes notification to RabbitMQ
+func publishNotificationEvent(reportID, title, status string) error {
+	notification := map[string]interface{}{
+		"id":        reportID,
+		"reportID":  reportID,
+		"title":     title,
+		"message":   "Status laporan berubah menjadi: " + translateStatus(status),
+		"type":      "status_update",
+		"status":    status,
+		"createdAt": time.Now(),
+	}
+
+	body, err := json.Marshal(notification)
+	if err != nil {
+		log.Printf("[ERROR] Failed to marshal notification: %v", err)
+		return err
+	}
+
+	err = amqpChannel.Publish(
+		"reports",        // exchange
+		"report.updated", // routing key
+		false,            // mandatory
+		false,            // immediate
+		amqp.Publishing{
+			ContentType: "application/json",
+			Body:        body,
+		},
+	)
+
+	if err != nil {
+		log.Printf("[ERROR] Failed to publish notification: %v", err)
+		return err
+	}
+
+	log.Printf("[OK] Notification published - ReportID: %s, Status: %s", reportID, status)
+	return nil
+}
+
+// translateStatus converts status to Indonesian
+func translateStatus(status string) string {
+	statusMap := map[string]string{
+		"pending":     "Menunggu",
+		"in-progress": "Sedang Diproses",
+		"completed":   "Selesai",
+		"rejected":    "Ditolak",
+	}
+	if translated, ok := statusMap[status]; ok {
+		return translated
+	}
+	return status
+}
+
 func updateReportStatus(w http.ResponseWriter, r *http.Request, id string) {
 	var input struct {
 		Status string `json:"status"`
@@ -362,6 +415,13 @@ func updateReportStatus(w http.ResponseWriter, r *http.Request, id string) {
 		response.Error(w, http.StatusNotFound, "Report not found", "")
 		return
 	}
+
+	// Publish notification event
+	go func() {
+		if err := publishNotificationEvent(id, "Status Laporan Diperbarui", input.Status); err != nil {
+			log.Printf("[WARN] Failed to publish notification: %v", err)
+		}
+	}()
 
 	response.Success(w, http.StatusOK, "Report status updated", nil)
 }
@@ -553,8 +613,8 @@ func adminAnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 		},
 		{
 			"$group": bson.M{
-				"_id": nil,
-				"total_upvotes": bson.M{"$sum": "$upvotes"},
+				"_id":              nil,
+				"total_upvotes":    bson.M{"$sum": "$upvotes"},
 				"avg_process_time": bson.M{"$avg": "$process_time_hours"},
 			},
 		},
@@ -603,4 +663,41 @@ func adminAnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("[OK] Analytics generated - Total: %d, Completed: %d, Pending: %d", totalCount, completedCount, pendingCount)
 	response.Success(w, http.StatusOK, "Analytics data retrieved", analytics)
+}
+
+// Admin endpoint - Get single report by ID
+func adminReportDetailHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		response.Error(w, http.StatusMethodNotAllowed, "Method not allowed", "")
+		return
+	}
+
+	id := r.URL.Path[len("/admin/reports/"):]
+	if id == "" {
+		response.Error(w, http.StatusBadRequest, "Missing report ID", "")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		response.Error(w, http.StatusBadRequest, "Invalid report ID", err.Error())
+		return
+	}
+
+	var report models.Report
+	err = db.Collection("reports").FindOne(ctx, bson.M{"_id": objID}).Decode(&report)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			response.Error(w, http.StatusNotFound, "Report not found", "")
+		} else {
+			response.Error(w, http.StatusInternalServerError, "Failed to fetch report", err.Error())
+		}
+		return
+	}
+
+	log.Printf("[OK] Admin fetched report - ID: %s", id)
+	response.Success(w, http.StatusOK, "Report fetched successfully", report)
 }

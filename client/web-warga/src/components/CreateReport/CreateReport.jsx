@@ -76,20 +76,36 @@ const CreateReport = ({ onSuccess }) => {
   const validateForm = () => {
     const newErrors = {};
     
+    // Title validation
     if (!formData.title.trim()) {
       newErrors.title = 'Judul wajib diisi';
+    } else if (formData.title.trim().length < 5) {
+      newErrors.title = 'Judul minimal 5 karakter';
+    } else if (formData.title.trim().length > 150) {
+      newErrors.title = 'Judul maksimal 150 karakter';
     }
     
+    // Description validation
     if (!formData.description.trim()) {
       newErrors.description = 'Deskripsi wajib diisi';
+    } else if (formData.description.trim().length < 10) {
+      newErrors.description = 'Deskripsi minimal 10 karakter';
+    } else if (formData.description.trim().length > 2000) {
+      newErrors.description = 'Deskripsi maksimal 2000 karakter';
     }
     
+    // Category validation
     if (!formData.category) {
       newErrors.category = 'Kategori wajib dipilih';
     }
     
+    // Location validation
     if (!formData.location.trim()) {
       newErrors.location = 'Lokasi wajib diisi';
+    } else if (formData.location.trim().length < 3) {
+      newErrors.location = 'Lokasi minimal 3 karakter';
+    } else if (formData.location.trim().length > 100) {
+      newErrors.location = 'Lokasi maksimal 100 karakter';
     }
     
     setErrors(newErrors);
