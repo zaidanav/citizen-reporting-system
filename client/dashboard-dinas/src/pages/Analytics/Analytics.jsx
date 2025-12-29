@@ -28,7 +28,10 @@ const Analytics = () => {
     try {
       setLoading(true);
       const response = await reportService.getAnalytics(timeRange);
-      setAnalyticsData(response.data);
+      console.log('[Analytics] Analytics response:', response);
+      // Handle both response.data and response formats
+      const analyticsData = response.data || response;
+      setAnalyticsData(analyticsData);
     } catch (error) {
       console.error('Error loading analytics:', error);
     } finally {
@@ -77,7 +80,7 @@ const Analytics = () => {
     <div className="analytics-page">
       <div className="analytics-header">
         <div>
-          <h1 className="analytics-title">📈 Dashboard Analitik</h1>
+          <h1 className="analytics-title">Dashboard Analitik</h1>
           <p className="analytics-subtitle">Visualisasi data kinerja sistem pelaporan</p>
         </div>
         
@@ -108,28 +111,28 @@ const Analytics = () => {
         <KPICard
           title="Total Laporan"
           value={analyticsData.total || 100}
-          icon="📋"
+          icon="list"
           trend="+12%"
           trendUp={true}
         />
         <KPICard
           title="Tingkat Penyelesaian"
           value={`${analyticsData.completionRate || 75}%`}
-          icon="✓"
+          icon="check"
           trend="+5%"
           trendUp={true}
         />
         <KPICard
           title="Rata-rata Waktu Proses"
           value={`${analyticsData.avgProcessTime || 3.5} hari`}
-          icon="⏱️"
+          icon="clock"
           trend="-8%"
           trendUp={true}
         />
         <KPICard
           title="Dukungan Warga"
           value={analyticsData.totalUpvotes || 450}
-          icon="👍"
+          icon="support"
           trend="+18%"
           trendUp={true}
         />
@@ -186,25 +189,25 @@ const Analytics = () => {
       
       {/* Insights */}
       <div className="insights-section">
-        <h2 className="insights-title">💡 Insight Kunci</h2>
+        <h2 className="insights-title">Insight Kunci</h2>
         <div className="insights-grid">
           <InsightCard
-            icon="🎯"
+            icon="target"
             title="Performa Terbaik"
             description="Kategori 'Penerangan' memiliki tingkat penyelesaian tertinggi (78%)"
           />
           <InsightCard
-            icon="⚠️"
+            icon="alert"
             title="Perlu Perhatian"
             description="Kategori 'Jalan Rusak' memiliki waktu proses rata-rata terlama (5.2 hari)"
           />
           <InsightCard
-            icon="📊"
+            icon="chart"
             title="Tren Positif"
             description="Tingkat penyelesaian meningkat 15% dibanding bulan lalu"
           />
           <InsightCard
-            icon="👥"
+            icon="people"
             title="Partisipasi Warga"
             description="Jumlah laporan baru meningkat 12% minggu ini"
           />
@@ -214,27 +217,51 @@ const Analytics = () => {
   );
 };
 
-const KPICard = ({ title, value, icon, trend, trendUp }) => (
-  <div className="kpi-card">
-    <div className="kpi-card__icon">{icon}</div>
-    <div className="kpi-card__content">
-      <div className="kpi-card__value">{value}</div>
-      <div className="kpi-card__title">{title}</div>
-      <div className={`kpi-card__trend ${trendUp ? 'kpi-card__trend--up' : 'kpi-card__trend--down'}`}>
-        {trendUp ? '↗' : '↘'} {trend}
+const KPICard = ({ title, value, icon, trend, trendUp }) => {
+  const getIconLabel = (iconName) => {
+    const icons = {
+      'list': '≡',
+      'check': '✓',
+      'clock': '⧐',
+      'support': '+'
+    };
+    return icons[iconName] || iconName;
+  };
+
+  return (
+    <div className="kpi-card">
+      <div className="kpi-card__icon">{getIconLabel(icon)}</div>
+      <div className="kpi-card__content">
+        <div className="kpi-card__value">{value}</div>
+        <div className="kpi-card__title">{title}</div>
+        <div className={`kpi-card__trend ${trendUp ? 'kpi-card__trend--up' : 'kpi-card__trend--down'}`}>
+          {trendUp ? '↗' : '↘'} {trend}
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
-const InsightCard = ({ icon, title, description }) => (
-  <div className="insight-card">
-    <div className="insight-card__icon">{icon}</div>
-    <div className="insight-card__content">
-      <h4 className="insight-card__title">{title}</h4>
-      <p className="insight-card__description">{description}</p>
+const InsightCard = ({ icon, title, description }) => {
+  const getIconLabel = (iconName) => {
+    const icons = {
+      'target': '◎',
+      'alert': '!',
+      'chart': '∿',
+      'people': '👥'
+    };
+    return icons[iconName] || iconName;
+  };
+
+  return (
+    <div className="insight-card">
+      <div className="insight-card__icon">{getIconLabel(icon)}</div>
+      <div className="insight-card__content">
+        <h4 className="insight-card__title">{title}</h4>
+        <p className="insight-card__description">{description}</p>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export default Analytics;

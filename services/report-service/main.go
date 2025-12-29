@@ -67,6 +67,10 @@ func main() {
 	http.HandleFunc("/api/reports/mine", middleware.LoggerMiddleware(middleware.AuthMiddleware(myReportsHandler)).ServeHTTP)
 	http.HandleFunc("/api/reports/", middleware.LoggerMiddleware(middleware.AuthMiddleware(reportDetailHandler)).ServeHTTP)
 	http.HandleFunc("/internal/updates", middleware.LoggerMiddleware(http.HandlerFunc(internalUpdateStatusHandler)).ServeHTTP)
+	
+	// Admin endpoints (no auth required for now, can be protected later)
+	http.HandleFunc("/admin/reports", middleware.LoggerMiddleware(http.HandlerFunc(adminReportsHandler)).ServeHTTP)
+	http.HandleFunc("/admin/analytics", middleware.LoggerMiddleware(http.HandlerFunc(adminAnalyticsHandler)).ServeHTTP)
 
 	port := ":8082"
 	log.Printf("[INFO] Report Service running on port %s", port)
@@ -423,4 +427,180 @@ func internalUpdateStatusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.Success(w, http.StatusOK, "Report status updated via internal API", nil)
+}
+
+// Admin endpoints - Get all reports (with filters)
+func adminReportsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		response.Error(w, http.StatusMethodNotAllowed, "Method not allowed", "")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Build filter
+	filter := bson.M{}
+
+	// Status filter
+	status := r.URL.Query().Get("status")
+	if status != "" {
+		filter["status"] = status
+	}
+
+	// Category filter
+	category := r.URL.Query().Get("category")
+	if category != "" {
+		filter["category"] = category
+	}
+
+	// Time range filter (default: 30 days)
+	timeRangeStr := r.URL.Query().Get("timeRange")
+	if timeRangeStr == "" {
+		timeRangeStr = "30d"
+	}
+
+	var days int
+	switch timeRangeStr {
+	case "7d":
+		days = 7
+	case "90d":
+		days = 90
+	default:
+		days = 30
+	}
+
+	startDate := time.Now().AddDate(0, 0, -days)
+	filter["created_at"] = bson.M{"$gte": startDate}
+
+	log.Printf("[INFO] Admin fetching reports - Filter: %v", filter)
+
+	cursor, err := db.Collection("reports").Find(ctx, filter)
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to fetch reports", err.Error())
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var reports []models.Report
+	if err := cursor.All(ctx, &reports); err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to decode reports", err.Error())
+		return
+	}
+
+	log.Printf("[OK] Admin fetched %d reports", len(reports))
+	response.Success(w, http.StatusOK, "Reports fetched successfully", reports)
+}
+
+// Admin endpoints - Get analytics data
+func adminAnalyticsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		response.Error(w, http.StatusMethodNotAllowed, "Method not allowed", "")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	timeRangeStr := r.URL.Query().Get("timeRange")
+	if timeRangeStr == "" {
+		timeRangeStr = "30d"
+	}
+
+	var days int
+	switch timeRangeStr {
+	case "7d":
+		days = 7
+	case "90d":
+		days = 90
+	default:
+		days = 30
+	}
+
+	startDate := time.Now().AddDate(0, 0, -days)
+
+	// Count total reports
+	totalCount, err := db.Collection("reports").CountDocuments(ctx, bson.M{
+		"created_at": bson.M{"$gte": startDate},
+	})
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to count reports", err.Error())
+		return
+	}
+
+	// Count by status
+	pendingCount, _ := db.Collection("reports").CountDocuments(ctx, bson.M{
+		"status":     "pending",
+		"created_at": bson.M{"$gte": startDate},
+	})
+
+	inProgressCount, _ := db.Collection("reports").CountDocuments(ctx, bson.M{
+		"status":     "in-progress",
+		"created_at": bson.M{"$gte": startDate},
+	})
+
+	completedCount, _ := db.Collection("reports").CountDocuments(ctx, bson.M{
+		"status":     "completed",
+		"created_at": bson.M{"$gte": startDate},
+	})
+
+	// Get total upvotes
+	pipeline := []bson.M{
+		{
+			"$match": bson.M{
+				"created_at": bson.M{"$gte": startDate},
+			},
+		},
+		{
+			"$group": bson.M{
+				"_id": nil,
+				"total_upvotes": bson.M{"$sum": "$upvotes"},
+				"avg_process_time": bson.M{"$avg": "$process_time_hours"},
+			},
+		},
+	}
+
+	cursor, err := db.Collection("reports").Aggregate(ctx, pipeline)
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to aggregate data", err.Error())
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var aggregateResult []bson.M
+	if err = cursor.All(ctx, &aggregateResult); err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to read aggregation", err.Error())
+		return
+	}
+
+	totalUpvotes := int64(0)
+	avgProcessTime := 0.0
+
+	if len(aggregateResult) > 0 {
+		if val, ok := aggregateResult[0]["total_upvotes"]; ok {
+			totalUpvotes = int64(val.(int32))
+		}
+		if val, ok := aggregateResult[0]["avg_process_time"]; ok {
+			avgProcessTime = val.(float64)
+		}
+	}
+
+	completionRate := 0.0
+	if totalCount > 0 {
+		completionRate = (float64(completedCount) / float64(totalCount)) * 100
+	}
+
+	analytics := map[string]interface{}{
+		"total":          totalCount,
+		"pending":        pendingCount,
+		"inProgress":     inProgressCount,
+		"completed":      completedCount,
+		"completionRate": completionRate,
+		"totalUpvotes":   totalUpvotes,
+		"avgProcessTime": avgProcessTime,
+		"timeRange":      timeRangeStr,
+	}
+
+	log.Printf("[OK] Analytics generated - Total: %d, Completed: %d, Pending: %d", totalCount, completedCount, pendingCount)
+	response.Success(w, http.StatusOK, "Analytics data retrieved", analytics)
 }

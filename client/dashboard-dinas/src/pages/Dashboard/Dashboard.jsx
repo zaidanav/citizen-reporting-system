@@ -22,13 +22,15 @@ const Dashboard = () => {
       setLoading(true);
       const filters = {
         status: filter !== 'all' ? filter : undefined,
-        department: department !== 'all' ? department : undefined,
+        timeRange: '30d', // Default to 30 days
       };
       
-      const response = await reportService.getAllReports(filters);
-      setReports(response.data.reports || []);
+      const reportsData = await reportService.getAllReports(filters);
+      console.log('[Dashboard] Reports loaded:', reportsData);
+      setReports(Array.isArray(reportsData) ? reportsData : []);
     } catch (error) {
       console.error('Error loading reports:', error);
+      setReports([]);
     } finally {
       setLoading(false);
     }
