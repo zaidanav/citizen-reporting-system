@@ -161,6 +161,24 @@ services:
     networks:
       - lapcw-network
 
+  dispatcher-service:
+    build:
+      context: .
+      dockerfile: services/dispatcher-service/Dockerfile
+    container_name: lapcw-dispatcher-service
+    restart: always
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=guest
+      - RABBITMQ_PASS=guest
+      - REPORT_SERVICE_URL=http://report-service:8082
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - lapcw-network
+
 networks:
   lapcw-network:
     driver: bridge

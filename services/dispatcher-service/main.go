@@ -1,11 +1,19 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"log"
+	"math/rand"
+	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"citizen-reporting-system/pkg/queue"
+
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type ReportEvent struct {
@@ -21,7 +29,16 @@ type ReportEvent struct {
 
 func main() {
 	// Connect to RabbitMQ
-	amqpURI := "amqp://guest:guest@localhost:5672/"
+	amqpURI := fmt.Sprintf("amqp://%s:%s@%s:%s/",
+		os.Getenv("RABBITMQ_USER"),
+		os.Getenv("RABBITMQ_PASS"),
+		os.Getenv("RABBITMQ_HOST"),
+		os.Getenv("RABBITMQ_PORT"),
+	)
+	if os.Getenv("RABBITMQ_HOST") == "" {
+		amqpURI = "amqp://guest:guest@localhost:5672/"
+	}
+
 	conn, ch, err := queue.ConnectRabbitMQ(amqpURI)
 	if err != nil {
 		log.Fatalf("❌ Failed to connect to RabbitMQ: %v", err)
@@ -50,9 +67,7 @@ func main() {
 			err := json.Unmarshal(d.Body, &report)
 			if err != nil {
 				log.Printf("⚠️ Error parsing JSON: %v", err)
-				// TODO: Implement Dead Letter Queue (DLQ) strategy
-				// If JSON format violates standards, move message to 'report_dlq'
-				// so it doesn't block the queue.
+				moveToDLQ(ch, d.Body, "json_parse_error")
 				continue
 			}
 
@@ -64,26 +79,26 @@ func main() {
 			}
 
 			// Routing to Department (Business Logic)
-			// TODO: Validate Required Fields
-			// Ensure 'Category' and 'Description' match the contract
+			var routeErr error
 			switch report.Category {
 			case "Sampah":
-				sendToDepartment(report, "DINAS KEBERSIHAN")
+				routeErr = sendToDepartment(report, "DINAS KEBERSIHAN")
 			case "Jalan":
-				sendToDepartment(report, "DINAS PU (PEKERJAAN UMUM)")
+				routeErr = sendToDepartment(report, "DINAS PU (PEKERJAAN UMUM)")
 			case "Keamanan":
-				sendToDepartment(report, "KEPOLISIAN / SATPOL PP")
+				routeErr = sendToDepartment(report, "KEPOLISIAN / SATPOL PP")
 			default:
-				sendToDepartment(report, "PEMDA PUSAT (KATEGORI UMUM)")
+				routeErr = sendToDepartment(report, "PEMDA PUSAT (KATEGORI UMUM)")
 			}
-			
-			// TODO: IMPLEMENT - Notification Trigger
-			// Call Notification Service (via RabbitMQ/HTTP) to alert the user:
-			// "Laporan Anda sedang diproses oleh [Nama Dinas]"
-			
-			// TODO: IMPLEMENT - Status Update
-			// Call Report Service API (PUT /reports/{id}/status)
-			// Update status from 'PENDING' to 'IN_PROGRESS' in Postgres.
+
+			if routeErr != nil {
+				log.Printf("❌ Routing failed: %v", routeErr)
+				moveToDLQ(ch, d.Body, routeErr.Error())
+				continue
+			}
+
+			// Update Status to IN_PROGRESS
+			updateReportStatus(report.ID, "IN_PROGRESS", os.Getenv("REPORT_SERVICE_URL"))
 
 			log.Println("---------------------------------------------------")
 		}
@@ -94,9 +109,72 @@ func main() {
 }
 
 // Forwarding to Department
-func sendToDepartment(r ReportEvent, departmentName string) {
-	// TODO: IMPLEMENT - Circuit Breaker / Retry Logic
-	// TODO: IMPLEMENT - External API Call
-	log.Printf("🚀 [ROUTING] Report '%s' forwarded to: >> %s <<", r.Title, departmentName)
-	log.Printf("Detail: %s (By: %s)", r.Description, r.Reporter)
+func sendToDepartment(r ReportEvent, departmentName string) error {
+	log.Printf("🚀 [ROUTING] Forwarding report '%s' to: >> %s <<", r.Title, departmentName)
+
+	// Simulate External API Call Latency
+	time.Sleep(time.Duration(rand.Intn(500)+200) * time.Millisecond)
+
+	// Simulate Failure (e.g. if Title contains "FAIL" or "ERROR")
+	if strings.Contains(strings.ToUpper(r.Title), "FAIL") {
+		return fmt.Errorf("external API timeout/error for %s", departmentName)
+	}
+
+	log.Printf("✅ Success: Report received by %s", departmentName)
+	return nil
+}
+
+func updateReportStatus(id, status, baseURL string) {
+	url := fmt.Sprintf("%s/internal/updates", baseURL)
+	payload := map[string]string{"id": id, "status": status}
+	jsonPayload, _ := json.Marshal(payload)
+
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonPayload))
+	if err != nil {
+		log.Printf("⚠️ Failed to update status: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("⚠️ Update status failed with code: %d", resp.StatusCode)
+	} else {
+		log.Printf("✅ Report %s status updated to %s", id, status)
+	}
+}
+
+func moveToDLQ(ch *amqp.Channel, body []byte, reason string) {
+	dlqName := "report_dlq"
+	// Ensure queue exists
+	_, err := ch.QueueDeclare(
+		dlqName, // name
+		true,    // durable
+		false,   // delete when unused
+		false,   // exclusive
+		false,   // no-wait
+		nil,     // arguments
+	)
+	if err != nil {
+		log.Printf("❌ Failed to declare DLQ: %v", err)
+		return
+	}
+
+	err = ch.Publish(
+		"",      // exchange
+		dlqName, // routing key
+		false,   // mandatory
+		false,   // immediate
+		amqp.Publishing{
+			ContentType: "application/json",
+			Body:        body,
+			Headers: amqp.Table{
+				"x-exception-message": reason,
+				"x-failed-at":         time.Now().Format(time.RFC3339),
+			},
+		})
+	if err != nil {
+		log.Printf("❌ Failed to publish to DLQ: %v", err)
+	} else {
+		log.Printf("⚠️ Message moved to DLQ: %s (Reason: %s)", dlqName, reason)
+	}
 }

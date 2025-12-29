@@ -33,8 +33,9 @@ function Show-AccessInfo {
 
     # Backend Services
     Write-Host "`n ⚙️  Backend Services:" -ForegroundColor Yellow
-    Write-Host "    🔐 Auth Service   : " -NoNewline; Write-Host "http://localhost:8081" -ForegroundColor Green
-    Write-Host "    📝 Report Service : " -NoNewline; Write-Host "http://localhost:8082" -ForegroundColor Green
+    Write-Host "    🔐 Auth Service   : " -NoNewline; Write-Host "$AuthServiceUrl" -ForegroundColor Green
+    Write-Host "    📝 Report Service : " -NoNewline; Write-Host "$ReportServiceUrl" -ForegroundColor Green
+    Write-Host "    📬 Dispatcher Service : " -NoNewline; Write-Host "Running (Background Worker)" -ForegroundColor Cyan
     
     Write-Host "===========================================================" -ForegroundColor Gray
 }
@@ -83,10 +84,13 @@ switch ($Task) {
             "s3"       { $ContainerName = "lapcw-minio";    $ShellCmd = "sh" }
             
             "grafana"  { $ContainerName = "lapcw-grafana";  $ShellCmd = "bash" }
+            "auth"       { $ContainerName = "lapcw-auth-service";       $ShellCmd = "sh" }
+            "report"     { $ContainerName = "lapcw-report-service";     $ShellCmd = "sh" }
+            "dispatcher" { $ContainerName = "lapcw-dispatcher-service"; $ShellCmd = "sh" }
 
             Default {
                 Write-Host "❌ Target '$Target' tidak dikenal." -ForegroundColor Red
-                Write-Host "   Available: postgres, mongo, rabbit, minio" -ForegroundColor Gray
+                Write-Host "   Available: postgres, mongo, rabbit, minio, auth, report, dispatcher" -ForegroundColor Gray
                 return
             }
         }

@@ -65,6 +65,7 @@ func main() {
 
 	http.HandleFunc("/api/reports", middleware.LoggerMiddleware(middleware.AuthMiddleware(reportsHandler)).ServeHTTP)
 	http.HandleFunc("/api/reports/", middleware.LoggerMiddleware(middleware.AuthMiddleware(reportDetailHandler)).ServeHTTP)
+	http.HandleFunc("/internal/updates", middleware.LoggerMiddleware(http.HandlerFunc(internalUpdateStatusHandler)).ServeHTTP)
 
 	port := ":8082"
 	log.Printf("🚀 Report Service running on port %s", port)
@@ -268,4 +269,67 @@ func updateReportStatus(w http.ResponseWriter, r *http.Request, id string) {
 	}
 
 	response.Success(w, http.StatusOK, "Report status updated", nil)
+}
+
+func internalUpdateStatusHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		response.Error(w, http.StatusMethodNotAllowed, "Method not allowed", "")
+		return
+	}
+
+	var input struct {
+		ID     string `json:"id"`
+		Status string `json:"status"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		response.Error(w, http.StatusBadRequest, "Invalid request payload", err.Error())
+		return
+	}
+
+	if input.ID == "" || input.Status == "" {
+		response.Error(w, http.StatusBadRequest, "ID and Status are required", "")
+		return
+	}
+
+	validStatuses := map[string]bool{
+		"PENDING":     true,
+		"IN_PROGRESS": true,
+		"RESOLVED":    true,
+		"REJECTED":    true,
+	}
+
+	if !validStatuses[input.Status] {
+		response.Error(w, http.StatusBadRequest, "Invalid status", "")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	objID, err := primitive.ObjectIDFromHex(input.ID)
+	if err != nil {
+		response.Error(w, http.StatusBadRequest, "Invalid report ID", err.Error())
+		return
+	}
+
+	update := bson.M{
+		"$set": bson.M{
+			"status":     input.Status,
+			"updated_at": time.Now(),
+		},
+	}
+
+	result, err := db.Collection("reports").UpdateOne(ctx, bson.M{"_id": objID}, update)
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to update status", err.Error())
+		return
+	}
+
+	if result.MatchedCount == 0 {
+		response.Error(w, http.StatusNotFound, "Report not found", "")
+		return
+	}
+
+	response.Success(w, http.StatusOK, "Report status updated via internal API", nil)
 }
