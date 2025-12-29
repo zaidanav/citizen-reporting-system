@@ -1,13 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { reportService } from '../../services/reportService';
+import { getDepartmentFromStorage } from '../../utils/jwtHelper';
 import './Dashboard.css';
 
 const Dashboard = () => {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
-  const [department] = useState('all'); // In production, get from user role
+  const [department, setDepartment] = useState('general');
   const [updatingId, setUpdatingId] = useState(null);
+
+  useEffect(() => {
+    const userDept = getDepartmentFromStorage();
+    setDepartment(userDept);
+    console.log('[Dashboard] User department:', userDept);
+  }, []);
 
   useEffect(() => {
     loadReports();

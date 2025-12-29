@@ -8,8 +8,15 @@ const Login = ({ setAuth }) => {
     email: '',
     password: '',
   });
+  const [department, setDepartment] = useState('DINAS KEBERSIHAN');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const departmentOptions = [
+    'DINAS KEBERSIHAN',
+    'DINAS PU',
+    'KEPOLISIAN',
+  ];
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -34,14 +41,14 @@ const Login = ({ setAuth }) => {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Mock successful login
+      // Mock successful login with selected department
       const mockToken = 'mock-admin-token-' + Date.now();
       const mockUser = {
         id: '1',
         email: formData.email,
         name: 'Admin Dinas',
         role: 'admin',
-        department: 'All',
+        department: department,
       };
       
       localStorage.setItem('admin_token', mockToken);
@@ -61,7 +68,7 @@ const Login = ({ setAuth }) => {
     <div className="admin-login-page">
       <div className="admin-login-container">
         <div className="admin-login-header">
-          <h1 className="admin-login-logo">🏛️ Dashboard Dinas</h1>
+          <h1 className="admin-login-logo">Dashboard Dinas</h1>
           <p className="admin-login-tagline">Sistem Pelaporan Warga Kota</p>
         </div>
         
@@ -105,6 +112,24 @@ const Login = ({ setAuth }) => {
                 className="admin-form-input"
                 required
               />
+            </div>
+
+            <div className="admin-form-group">
+              <label htmlFor="department" className="admin-form-label">
+                Departemen
+              </label>
+              <select
+                id="department"
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
+                className="admin-form-input"
+              >
+                {departmentOptions.map((dept) => (
+                  <option key={dept} value={dept}>
+                    {dept}
+                  </option>
+                ))}
+              </select>
             </div>
             
             <button

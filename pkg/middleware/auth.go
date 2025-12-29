@@ -20,9 +20,10 @@ const (
 var jwtSecret = []byte("SUPER_SECRET_KEY_CHANGE_ME")
 
 type UserClaims struct {
-	UserID string `json:"user_id"`
-	Email  string `json:"email"`
-	Role   string `json:"role"`
+	UserID     string `json:"user_id"`
+	Email      string `json:"email"`
+	Role       string `json:"role"`
+	Department string `json:"department"`
 	jwt.RegisteredClaims
 }
 

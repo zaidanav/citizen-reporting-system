@@ -1,11 +1,16 @@
 import api from '../api/client';
+import { getDepartmentFromStorage } from '../utils/jwtHelper';
 
 export const reportService = {
   // Get all reports with filtering
   getAllReports: async (filters = {}) => {
     try {
+      const department = getDepartmentFromStorage();
       const response = await api.get('/admin/reports', {
         params: filters,
+        headers: {
+          'X-Department': department,
+        },
       });
       console.log('[Service] Admin reports response:', response.data);
       // Return the data from response structure
@@ -34,8 +39,12 @@ export const reportService = {
   // Get analytics data
   getAnalytics: async (timeRange = '30d') => {
     try {
+      const department = getDepartmentFromStorage();
       const response = await api.get('/admin/analytics', {
         params: { timeRange },
+        headers: {
+          'X-Department': department,
+        },
       });
       console.log('[Service] Analytics response:', response.data);
       // Backend returns: { status: "success", message: "...", data: analyticsData }

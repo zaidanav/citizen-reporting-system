@@ -99,18 +99,13 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	newUser := models.User{
-		Email:    input.Email,
-		Password: hashedPassword,
-		Name:     input.Name,
-		NIK:      nikPtr,
-		Phone:    input.Phone,
-		Role:     "citizen",
-	}
-
-	if err := db.Create(&newUser).Error; err != nil {
-		response.Error(w, http.StatusInternalServerError, "Failed to create user", err.Error())
-		return
-	}
+			Email:      input.Email,
+			Password:   hashedPassword,
+			Name:       input.Name,
+			NIK:        nikPtr,
+			Phone:      input.Phone,
+			Role:       "citizen",
+			Department: "general",
 
 	response.Success(w, http.StatusCreated, "User registered successfully", newUser)
 }
@@ -142,16 +137,17 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := utils.GenerateJWT(user.ID, user.Email, user.Role)
+	token, err := utils.GenerateJWT(user.ID, user.Email, user.Role, user.Department)
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, "Failed to generate token", err.Error())
 		return
 	}
 
-	response.Success(w, http.StatusOK, "Login successful", map[string]string{
-		"token": token,
-		"name":  user.Name,
-		"role":  user.Role,
+	response.Success(w, http.StatusOK, "Login successful", map[string]interface{}{
+		"token":      token,
+		"name":       user.Name,
+		"role":       user.Role,
+		"department": user.Department,
 	})
 }
 

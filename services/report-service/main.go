@@ -27,6 +27,34 @@ var (
 	queueName   = "report_queue"
 )
 
+// mapCategoryToDepartment maps report categories to departments
+func mapCategoryToDepartment(category string) []string {
+	switch category {
+	case "Sampah":
+		return []string{"DINAS KEBERSIHAN"}
+	case "Jalan":
+		return []string{"DINAS PU"}
+	case "Keamanan":
+		return []string{"KEPOLISIAN"}
+	default:
+		return []string{}
+	}
+}
+
+// mapDepartmentToCategories maps admin department to report categories they handle
+func mapDepartmentToCategories(department string) []string {
+	switch department {
+	case "DINAS KEBERSIHAN":
+		return []string{"Sampah"}
+	case "DINAS PU":
+		return []string{"Jalan"}
+	case "KEPOLISIAN":
+		return []string{"Keamanan"}
+	default:
+		return []string{}
+	}
+}
+
 func main() {
 	mongoURI := fmt.Sprintf("mongodb://%s:%s@%s:%s",
 		os.Getenv("MONGO_USER"),
@@ -508,9 +536,33 @@ func adminReportsHandler(w http.ResponseWriter, r *http.Request) {
 		filter["status"] = status
 	}
 
-	// Category filter
+	// Department-based category filter
+	department := r.Header.Get("X-Department")
+	if department != "" {
+		allowedCategories := mapDepartmentToCategories(department)
+		if len(allowedCategories) > 0 {
+			filter["category"] = bson.M{"$in": allowedCategories}
+			log.Printf("[INFO] Filtering reports for department: %s, categories: %v", department, allowedCategories)
+		}
+	}
+
+	// Category filter (if explicitly provided, must be within department scope)
 	category := r.URL.Query().Get("category")
 	if category != "" {
+		if department != "" {
+			allowedCategories := mapDepartmentToCategories(department)
+			found := false
+			for _, c := range allowedCategories {
+				if c == category {
+					found = true
+					break
+				}
+			}
+			if !found {
+				response.Error(w, http.StatusForbidden, "Category not authorized for your department", "")
+				return
+			}
+		}
 		filter["category"] = category
 	}
 
@@ -579,37 +631,60 @@ func adminAnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 
 	startDate := time.Now().AddDate(0, 0, -days)
 
-	// Count total reports
-	totalCount, err := db.Collection("reports").CountDocuments(ctx, bson.M{
+	// Build base filter with department scope
+	baseFilter := bson.M{
 		"created_at": bson.M{"$gte": startDate},
-	})
+	}
+
+	// Apply department-based category filter if department header provided
+	department := r.Header.Get("X-Department")
+	if department != "" {
+		allowedCategories := mapDepartmentToCategories(department)
+		if len(allowedCategories) > 0 {
+			baseFilter["category"] = bson.M{"$in": allowedCategories}
+			log.Printf("[INFO] Filtering analytics for department: %s, categories: %v", department, allowedCategories)
+		}
+	}
+
+	// Count total reports
+	totalCount, err := db.Collection("reports").CountDocuments(ctx, baseFilter)
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, "Failed to count reports", err.Error())
 		return
 	}
 
 	// Count by status
-	pendingCount, _ := db.Collection("reports").CountDocuments(ctx, bson.M{
+	pendingFilter := bson.M{
 		"status":     "pending",
 		"created_at": bson.M{"$gte": startDate},
-	})
+	}
+	if category, ok := baseFilter["category"]; ok {
+		pendingFilter["category"] = category
+	}
+	pendingCount, _ := db.Collection("reports").CountDocuments(ctx, pendingFilter)
 
-	inProgressCount, _ := db.Collection("reports").CountDocuments(ctx, bson.M{
+	inProgressFilter := bson.M{
 		"status":     "in-progress",
 		"created_at": bson.M{"$gte": startDate},
-	})
+	}
+	if category, ok := baseFilter["category"]; ok {
+		inProgressFilter["category"] = category
+	}
+	inProgressCount, _ := db.Collection("reports").CountDocuments(ctx, inProgressFilter)
 
-	completedCount, _ := db.Collection("reports").CountDocuments(ctx, bson.M{
+	completedFilter := bson.M{
 		"status":     "completed",
 		"created_at": bson.M{"$gte": startDate},
-	})
+	}
+	if category, ok := baseFilter["category"]; ok {
+		completedFilter["category"] = category
+	}
+	completedCount, _ := db.Collection("reports").CountDocuments(ctx, completedFilter)
 
 	// Get total upvotes
 	pipeline := []bson.M{
 		{
-			"$match": bson.M{
-				"created_at": bson.M{"$gte": startDate},
-			},
+			"$match": baseFilter,
 		},
 		{
 			"$group": bson.M{
