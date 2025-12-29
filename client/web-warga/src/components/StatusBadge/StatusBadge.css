@@ -1,0 +1,39 @@
+/* Status Badge - Solid Colors */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-badge--pending {
+  background-color: var(--status-pending);
+  color: var(--bg-primary);
+}
+
+.status-badge--in-progress {
+  background-color: var(--status-in-progress);
+  color: var(--text-primary);
+}
+
+.status-badge--completed {
+  background-color: var(--status-completed);
+  color: var(--text-primary);
+}
+
+.status-badge--rejected {
+  background-color: var(--status-rejected);
+  color: var(--text-primary);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .status-badge {
+    padding: 4px 8px;
+    font-size: 10px;
+  }
+}

@@ -1,0 +1,95 @@
+/* Login Page - Dark Mode, Elegant */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-lg);
+  background-color: var(--bg-primary);
+}
+
+.login-container {
+  width: 100%;
+  max-width: 480px;
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: var(--spacing-xl);
+}
+
+.login-logo {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-sm);
+}
+
+.login-tagline {
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+}
+
+.login-card {
+  margin-bottom: var(--spacing-lg);
+}
+
+.login-title {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-lg);
+  text-align: center;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.login-footer {
+  margin-top: var(--spacing-lg);
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--border-primary);
+}
+
+.login-switch {
+  text-align: center;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.login-switch-btn {
+  background: none;
+  border: none;
+  color: var(--accent-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.login-switch-btn:hover {
+  color: var(--accent-primary-hover);
+  text-decoration: underline;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .login-page {
+    padding: var(--spacing-md);
+  }
+  
+  .login-logo {
+    font-size: var(--font-size-xl);
+  }
+  
+  .login-tagline {
+    font-size: var(--font-size-sm);
+  }
+  
+  .login-title {
+    font-size: var(--font-size-lg);
+  }
+}

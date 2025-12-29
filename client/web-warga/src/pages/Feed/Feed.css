@@ -1,0 +1,243 @@
+/* Feed Page - Mobile First */
+.feed-page {
+  min-height: 100vh;
+  padding-bottom: var(--spacing-xl);
+}
+
+.feed-header {
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-primary);
+  padding: var(--spacing-xl) 0;
+  margin-bottom: var(--spacing-lg);
+}
+
+.feed-title {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-sm);
+}
+
+.feed-subtitle {
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+}
+
+.feed-actions {
+  margin-bottom: var(--spacing-lg);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.feed-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-xl);
+  gap: var(--spacing-md);
+  color: var(--text-secondary);
+}
+
+.feed-empty {
+  text-align: center;
+  padding: var(--spacing-xl);
+}
+
+.feed-empty h3 {
+  font-size: var(--font-size-xl);
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-sm);
+}
+
+.feed-empty p {
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-lg);
+}
+
+.feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.feed-load-more {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--spacing-lg);
+}
+
+/* Report Card - Flat Design */
+.report-card {
+  transition: all 0.2s ease;
+}
+
+.report-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-md);
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.report-card__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.report-card__author {
+  font-weight: 500;
+}
+
+.report-card__dot {
+  opacity: 0.5;
+}
+
+.report-card__body {
+  margin-bottom: var(--spacing-md);
+}
+
+.report-card__title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-sm);
+  line-height: 1.4;
+}
+
+.report-card__info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.report-card__category,
+.report-card__location {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.report-card__description {
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: var(--spacing-md);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.report-card__image {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-top: var(--spacing-md);
+  border: 1px solid var(--border-primary);
+}
+
+.report-card__image img {
+  width: 100%;
+  height: auto;
+  display: block;
+  max-height: 400px;
+  object-fit: cover;
+}
+
+.report-card__footer {
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--border-primary);
+}
+
+/* Upvote Button - Solid Design */
+.upvote-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: 10px 20px;
+  background-color: var(--bg-tertiary);
+  border: 2px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.upvote-btn:hover:not(:disabled) {
+  border-color: var(--accent-primary);
+  background-color: var(--bg-secondary);
+}
+
+.upvote-btn--active {
+  background-color: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+.upvote-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.upvote-btn__icon {
+  font-size: 18px;
+}
+
+.upvote-btn__count {
+  font-weight: 700;
+  min-width: 24px;
+  text-align: center;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .feed-header {
+    padding: var(--spacing-lg) 0;
+  }
+  
+  .feed-title {
+    font-size: var(--font-size-xl);
+  }
+  
+  .feed-subtitle {
+    font-size: var(--font-size-sm);
+  }
+  
+  .feed-actions {
+    justify-content: stretch;
+  }
+  
+  .feed-actions button {
+    width: 100%;
+  }
+  
+  .feed-list {
+    gap: var(--spacing-md);
+  }
+  
+  .report-card__title {
+    font-size: var(--font-size-base);
+  }
+  
+  .report-card__info {
+    flex-direction: column;
+    gap: var(--spacing-xs);
+  }
+  
+  .report-card__description {
+    font-size: var(--font-size-sm);
+  }
+  
+  .upvote-btn {
+    padding: 8px 16px;
+    font-size: 12px;
+  }
+}

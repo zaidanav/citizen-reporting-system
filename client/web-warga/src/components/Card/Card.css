@@ -1,0 +1,48 @@
+/* Card Component - Flat Design */
+.card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+
+.card--padding-none {
+  padding: 0;
+}
+
+.card--padding-small {
+  padding: var(--spacing-md);
+}
+
+.card--padding-normal {
+  padding: var(--spacing-lg);
+}
+
+.card--padding-large {
+  padding: var(--spacing-xl);
+}
+
+.card--hover:hover {
+  border-color: var(--border-secondary);
+  box-shadow: var(--shadow-md);
+}
+
+.card--clickable {
+  cursor: pointer;
+}
+
+.card--clickable:active {
+  transform: translateY(1px);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .card--padding-normal {
+    padding: var(--spacing-md);
+  }
+  
+  .card--padding-large {
+    padding: var(--spacing-lg);
+  }
+}
