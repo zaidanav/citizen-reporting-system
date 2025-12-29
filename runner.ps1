@@ -30,6 +30,11 @@ function Show-AccessInfo {
     Write-Host "`n 🛢️  Database Connections:" -ForegroundColor Yellow
     Write-Host "    🐘 Postgres : localhost:5432  (User: admin | Pass: password)" -ForegroundColor Gray
     Write-Host "    🍃 MongoDB  : localhost:27017 (User: admin | Pass: password)" -ForegroundColor Gray
+
+    # Backend Services
+    Write-Host "`n ⚙️  Backend Services:" -ForegroundColor Yellow
+    Write-Host "    🔐 Auth Service   : " -NoNewline; Write-Host "http://localhost:8081" -ForegroundColor Green
+    Write-Host "    📝 Report Service : " -NoNewline; Write-Host "http://localhost:8082" -ForegroundColor Green
     
     Write-Host "===========================================================" -ForegroundColor Gray
 }

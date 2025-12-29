@@ -20,7 +20,7 @@ var db *gorm.DB
 
 func main() {
 	dsn := fmt.Sprintf(
-		"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Jakarta",
+		"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC",
 		os.Getenv("POSTGRES_HOST"),
 		os.Getenv("POSTGRES_USER"),
 		os.Getenv("POSTGRES_PASSWORD"),
@@ -29,7 +29,7 @@ func main() {
 	)
 
 	if os.Getenv("POSTGRES_HOST") == "" {
-		dsn = "host=localhost user=admin password=password dbname=auth_db port=5434 sslmode=disable TimeZone=Asia/Jakarta"
+		dsn = "host=localhost user=admin password=password dbname=auth_db port=5434 sslmode=disable TimeZone=UTC"
 	}
 
 	var err error
