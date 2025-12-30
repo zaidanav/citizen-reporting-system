@@ -12,12 +12,23 @@ const RETRY_CONFIG = {
   retryableStatuses: [408, 429, 500, 502, 503, 504],
 };
 
-const api = axios.create({
-  baseURL: '/api',
+// Create separate instances for different services
+const authApi = axios.create({
+  baseURL: 'http://localhost:8081',
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+const reportApi = axios.create({
+  baseURL: 'http://localhost:8082',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Default export for backwards compatibility - uses report API for admin endpoints
+const api = reportApi;
 
 // Track retry attempts per request
 const retryAttempts = new Map();
@@ -27,6 +38,19 @@ api.interceptors.request.use(
     const token = localStorage.getItem('admin_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    
+    // Add department header from localStorage
+    const adminUser = localStorage.getItem('admin_user');
+    if (adminUser) {
+      try {
+        const user = JSON.parse(adminUser);
+        if (user.department) {
+          config.headers['X-Department'] = user.department;
+        }
+      } catch (e) {
+        console.warn('Failed to parse admin_user from localStorage');
+      }
     }
     
     config.headers['X-Trace-Id'] = generateTraceId();
@@ -102,4 +126,5 @@ api.interceptors.response.use(
   }
 );
 
+export { authApi, reportApi };
 export default api;

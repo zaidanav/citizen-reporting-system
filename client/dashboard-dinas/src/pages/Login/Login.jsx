@@ -8,14 +8,17 @@ const Login = ({ setAuth }) => {
     email: '',
     password: '',
   });
-  const [department, setDepartment] = useState('DINAS KEBERSIHAN');
+  const [department, setDepartment] = useState('General');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const departmentOptions = [
-    'DINAS KEBERSIHAN',
-    'DINAS PU',
-    'KEPOLISIAN',
+    'General',
+    'Kebersihan',
+    'Pekerjaan Umum',
+    'Penerangan Jalan',
+    'Lingkungan Hidup',
+    'Perhubungan',
   ];
 
   const handleChange = (e) => {
@@ -35,24 +38,37 @@ const Login = ({ setAuth }) => {
     setLoading(true);
     
     try {
-      // Mock login - replace with actual API call
-      // const response = await api.post('/admin/login', formData);
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock successful login with selected department
-      const mockToken = 'mock-admin-token-' + Date.now();
-      const mockUser = {
-        id: '1',
+      // Call real auth API
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Login gagal');
+      }
+
+      const data = await response.json();
+      const { token, name, role, department: apiDepartment, access_role } = data.data;
+
+      const user = {
+        id: data.data.id || '1',
         email: formData.email,
-        name: 'Admin Dinas',
-        role: 'admin',
-        department: department,
+        name: name,
+        role: role,
+        department: apiDepartment || department,
+        access_role: access_role || 'operational',
       };
       
-      localStorage.setItem('admin_token', mockToken);
-      localStorage.setItem('admin_user', JSON.stringify(mockUser));
+      localStorage.setItem('admin_token', token);
+      localStorage.setItem('admin_user', JSON.stringify(user));
       
       setAuth(true);
       navigate('/dashboard');

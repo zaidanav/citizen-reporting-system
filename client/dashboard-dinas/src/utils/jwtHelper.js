@@ -29,3 +29,18 @@ export const getDepartmentFromStorage = () => {
   }
   return 'general';
 };
+
+// Get access role from stored admin user
+export const getAccessRoleFromStorage = () => {
+  try {
+    const adminUser = localStorage.getItem('admin_user');
+    if (adminUser) {
+      const user = JSON.parse(adminUser);
+      return user.access_role || 'operational';
+    }
+  } catch (error) {
+    console.error('[JWT] Error getting access_role from storage:', error);
+  }
+  return 'operational';
+};
+
