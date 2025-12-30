@@ -9,28 +9,47 @@ This repository contains a Proof of Concept (PoC) implementation for a citizen r
 
 ### Prerequisites
 - Docker Desktop
-- Go 1.23+ (project uses Go toolchain; it may auto-download a newer Go)
-- Node.js 18+
+- Node.js 18+ (untuk frontend)
 - PowerShell 5.1+
 
-### One-Command Start
+### Langkah 1: Build Backend Services (First Time Only)
 ```powershell
-# Install frontend dependencies (first time only)
-cd client/web-warga && npm install
-cd client/dashboard-dinas && npm install
+# Build Docker images untuk semua backend services
+.\runner.ps1 build
+```
 
-# Start everything (Infrastructure + Backend + Frontend)
-.\runner.ps1 dev
+### Langkah 2: Start Backend Services (Infrastructure + Backend)
+```powershell
+# Start semua services di Docker
+.\runner.ps1 up
+```
+
+### Langkah 3: Start Frontend Applications
+```powershell
+# Install dependencies (first time only)
+cd client/web-warga && npm install && cd ../..
+cd client/dashboard-dinas && npm install && cd ../..
+
+# Run frontend development servers
+.\runner.ps1 frontend
 ```
 
 **Access the system:**
 - 🌐 **Web Warga (Citizen):** http://localhost:3000
 - 👔 **Dashboard Dinas (Admin):** http://localhost:3001
-- 🐰 **RabbitMQ Console:** http://localhost:15672
-- 🗄️ **MinIO Console:** http://localhost:9001
-- 📊 **Grafana Dashboard:** http://localhost:3002
+- 🔐 **Auth Service:** http://localhost:8081
+- 📝 **Report Service:** http://localhost:8082
+- 🔔 **Notification Service:** http://localhost:8084
+- 🐰 **RabbitMQ Console:** http://localhost:15672 (guest/guest)
+- 🗄️ **MinIO Console:** http://localhost:9001 (minioadmin/minioadmin)
+- 📊 **Grafana Dashboard:** http://localhost:3002 (admin/admin)
 
-**Stop all services:** Press `Ctrl+C`
+**Stop services:**
+```powershell
+# Stop frontend (Ctrl+C di terminal frontend)
+# Stop backend dan infrastructure
+.\runner.ps1 down
+```
 
 📖 **Full documentation:** [RUNNER_GUIDE.md](./RUNNER_GUIDE.md)
 
@@ -141,76 +160,6 @@ When a new report is created, **Report Service** must publish a JSON message to 
 }
 
 ```
-
----
-
-## 🚀 How to Run the Project (Quick Start)
-
-Ensure the following are installed on your computer:
-
-* **Docker Desktop** (Running)
-
-### Using Task Runner (`runner.ps1`)
-
-We provide a `runner.ps1` script to simplify container management without typing long Docker commands.
-
-1. **Starting the System (Up)**
-Start all infrastructure (DB, Queue, Services) in the background.
-
-```powershell
-.\runner.ps1 up
-
-```
-
-2. **Checking Status (Check)**
-Ensure all containers are running healthily.
-
-```powershell
-.\runner.ps1 ps
-
-```
-
-3. **Viewing Logs (Debug)**
-View activity logs from all services in real-time.
-
-```powershell
-.\runner.ps1 logs
-
-```
-
-4. **Stopping the System (Down)**
-Stop and clean up containers.
-
-```powershell
-.\runner.ps1 down
-
-```
-
-5. **Restarting the System**
-Restart all services and display access URLs & credentials.
-
-```powershell
-.\runner.ps1 restart
-
-```
-
-6. **Storage setup (MinIO)**
-Bucket creation and public-read policy are handled automatically by `report-service` on startup.
-
-7. **Accessing Container Shell**
-Directly enter a container's terminal without looking up container IDs.
-*Supported targets: `postgres` (or `db`), `mongo`, `rabbit` (or `mq`), `minio` (or `s3`), `grafana`.*
-
-```powershell
-# Example: Enter MongoDB shell
-.\runner.ps1 shell mongo
-
-# Example: Enter Postgres shell
-.\runner.ps1 shell db
-
-```
-
-> **Note:** When running `up` or `restart`, the script will automatically print a table containing **Service URLs and Login Credentials** for your convenience.
 
 ---
 

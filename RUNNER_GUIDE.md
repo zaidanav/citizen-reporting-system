@@ -4,15 +4,16 @@ Panduan lengkap untuk menggunakan `runner.ps1` - PowerShell script untuk mengelo
 
 ## 📋 Prerequisites
 
-### 1. Software yang Dibutuhkan
-- **Docker Desktop** - untuk menjalankan infrastructure services
-- **Go 1.21+** - untuk backend services
-- **Node.js 18+** - untuk frontend applications
+### Software yang Dibutuhkan
+- **Docker Desktop** - untuk menjalankan semua backend services dan infrastructure
+- **Node.js 18+** - untuk frontend development servers
 - **PowerShell 5.1+** - untuk menjalankan runner script
 
-### 2. Persiapan Awal
+### Persiapan Awal
 
-#### Install Dependencies Frontend
+Frontend dependencies akan otomatis diinstall saat menjalankan `runner.ps1 frontend` untuk pertama kali.
+
+Jika ingin install manual:
 ```powershell
 # Web Warga
 cd client/web-warga
@@ -23,130 +24,130 @@ cd client/dashboard-dinas
 npm install
 ```
 
-#### Verifikasi Go Modules
-```powershell
-# Di root project
-go mod download
-```
-
 ---
 
 ## 🎯 Main Commands
 
-### 1. Start Full Development Environment
-Jalankan SEMUA services (Infrastructure + Backend + Frontend) dalam satu command:
+### Quick Start (Recommended)
 
+Untuk menjalankan sistem lengkap, gunakan **2 terminal**:
+
+**Terminal 1 - Backend Services:**
 ```powershell
-.\runner.ps1 dev
+# First time only: Build Docker images
+.\runner.ps1 build
+
+# Start all backend services
+.\runner.ps1 up
 ```
 
-**Yang akan dijalankan:**
-- ✅ Docker Infrastructure (Postgres, MongoDB, RabbitMQ, MinIO, Grafana, Prometheus)
-- ✅ Backend Services (Auth, Report, Notification, Dispatcher)
-- ✅ Frontend Applications (Web Warga, Dashboard Dinas)
+**Terminal 2 - Frontend Servers:**
+```powershell
+# Start frontend development servers
+.\runner.ps1 frontend
+```
 
 **Access URLs:**
-- 🌐 Web Warga: http://localhost:3000
-- 👔 Dashboard Dinas: http://localhost:3001
-- 🔐 Auth API: http://localhost:8081
-- 📝 Report API: http://localhost:8082
-- 🔔 Notification API: http://localhost:8084
-
-**Stop semua services:** Tekan `Ctrl+C`
+- 🌐 **Web Warga:** http://localhost:3000
+- 👔 **Dashboard Dinas:** http://localhost:3001
+- 🔐 **Auth API:** http://localhost:8081
+- 📝 **Report API:** http://localhost:8082
+- 🔔 **Notification API:** http://localhost:8084
+- 🐰 **RabbitMQ Console:** http://localhost:15672 (guest/guest)
+- 🗄️ **MinIO Console:** http://localhost:9001 (minioadmin/minioadmin)
+- 📊 **Grafana Dashboard:** http://localhost:3002 (admin/admin)
 
 ---
 
-### 2. Start Backend Only
-Jalankan hanya Backend Services:
+## 📚 Detailed Command Reference
+
+### 1. Build Backend Services (First Time Only)
 
 ```powershell
-.\runner.ps1 backend
+.\runner.ps1 build
+```
+
+**Fungsi:**
+- Build Docker images untuk semua backend services
+- Stop container yang sedang berjalan
+- Compile services: Auth, Report, Notification, Dispatcher
+
+**Kapan digunakan:**
+- ✅ Setup pertama kali
+- ✅ Setelah update code backend
+- ✅ Setelah git pull dari repository
+
+---
+
+### 2. Start Backend Services
+
+```powershell
+.\runner.ps1 up
 ```
 
 **Yang akan dijalankan:**
-- Auth Service (Port 8081)
-- Report Service (Port 8082)
-- Notification Service (Port 8084)
-- Dispatcher Service (Background Worker)
+- ✅ Infrastructure (Postgres, MongoDB, RabbitMQ, MinIO)
+- ✅ Backend Services (Auth, Report, Notification, Dispatcher)
+- ✅ Monitoring (Prometheus, Grafana)
+- ✅ API Gateway (Nginx)
 
-**Note:** Infrastructure (Docker) harus sudah running!
+**Services berjalan di Docker containers:**
+- `lapcw-auth-service` - Port 8081
+- `lapcw-report-service` - Port 8082
+- `lapcw-notification-service` - Port 8084
+- `lapcw-dispatcher-service` - Background worker
+- `lapcw-postgres` - Port 5434
+- `lapcw-mongo` - Port 27017
+- `lapcw-rabbitmq` - Port 5672, 15672
+- `lapcw-minio` - Port 9000, 9001
 
 ---
 
-### 3. Start Frontend Only
-Jalankan hanya Frontend Applications:
+### 3. Start Frontend Development Servers
 
 ```powershell
 .\runner.ps1 frontend
 ```
 
 **Yang akan dijalankan:**
-- Web Warga (Port 3000)
-- Dashboard Dinas (Port 3001)
+- Web Warga (Port 3000) - Vite Dev Server
+- Dashboard Dinas (Port 3001) - Vite Dev Server
 
-**Note:** Backend services harus sudah running untuk fitur lengkap!
+**Fitur:**
+- Auto-install npm dependencies jika belum ada
+- Hot reload saat code berubah
+- Development mode dengan source maps
+
+**Note:** Backend harus sudah running (`runner.ps1 up`)
+
+**Stop:** Tekan `Ctrl+C` di terminal
 
 ---
 
-### 4. Stop All Services
-Stop semua services yang berjalan:
+### 4. Stop All Backend Services
 
 ```powershell
-.\runner.ps1 stop
+.\runner.ps1 down
 ```
 
-Akan menghentikan:
-- Backend services (Go processes)
-- Frontend applications (Node processes)
-- Membersihkan port yang digunakan
+**Fungsi:**
+- Stop semua Docker containers
+- Cleanup resources
+- Port akan di-release
 
 ---
 
-### 5. Check Status
-Lihat status semua services:
+### 5. Check Service Status
 
 ```powershell
 .\runner.ps1 status
 ```
 
-Output menampilkan:
-- 🐳 Docker container status
-- ⚙️ Backend services status (by port)
-- 🌐 Frontend applications status (by port)
-
----
-
-## 🐳 Docker Infrastructure Commands
-
-### Start Infrastructure
-```powershell
-.\runner.ps1 up
-```
-Start semua Docker containers (DB, RabbitMQ, MinIO, dll)
-
-### Stop Infrastructure
-```powershell
-.\runner.ps1 down
-```
-Stop semua Docker containers
-
-### Restart Infrastructure
-```powershell
-.\runner.ps1 restart
-```
-Restart semua Docker containers
-
-### Check Docker Status
-```powershell
-.\runner.ps1 ps
-```
-Lihat status Docker containers
-
-### View Docker Logs
-```powershell
-.\runner.ps1 logs
-```
-Stream logs dari semua containers (real-time)
+**Output:**
+- List semua Docker containers
+- Status (Up/Down)
+- Port mapping
+- Health check status
 
 ---
 
@@ -203,55 +204,47 @@ Akan membuat:
 
 ## 📖 Common Workflows
 
-### Workflow 1: Full Development Start
+### Workflow 1: Development Start (Recommended)
 ```powershell
-# 1. Start semuanya
-.\runner.ps1 dev
+# Terminal 1 - Backend
+.\runner.ps1 build    # First time only
+.\runner.ps1 up       # Start backend services
 
-# 2. Akses aplikasi
+# Terminal 2 - Frontend
+.\runner.ps1 frontend # Start frontend dev servers
+
+# Akses aplikasi:
 # - Web Warga: http://localhost:3000
 # - Dashboard: http://localhost:3001
-
-# 3. Stop saat selesai
-# Tekan Ctrl+C
 ```
 
-### Workflow 2: Restart Frontend Only
+### Workflow 2: Stop All Services
 ```powershell
-# 1. Stop services yang berjalan
-.\runner.ps1 stop
-
-# 2. Start ulang frontend
-.\runner.ps1 frontend
+# Terminal dengan frontend: Ctrl+C
+# Terminal untuk backend:
+.\runner.ps1 down
 ```
 
-### Workflow 3: Debugging Backend
+### Workflow 3: Rebuild After Code Changes
 ```powershell
-# 1. Start infrastructure
+# Jika update backend code:
+.\runner.ps1 down
+.\runner.ps1 build
 .\runner.ps1 up
 
-# 2. Start frontend
-.\runner.ps1 frontend
-
-# 3. Run backend manual (untuk debugging)
-# Buka terminal baru untuk setiap service:
-cd services/auth-service
-go run main.go
-
-cd services/report-service
-go run main.go
+# Frontend: Hot reload otomatis
 ```
 
 ### Workflow 4: Check Issues
 ```powershell
-# 1. Check service status
+# Check service status
 .\runner.ps1 status
 
-# 2. Check Docker logs
-.\runner.ps1 logs
+# Check Docker logs
+docker-compose logs -f [service-name]
 
-# 3. Access specific container
-.\runner.ps1 shell postgres
+# Access container shell
+docker exec -it lapcw-postgres bash
 ```
 
 ---
@@ -260,62 +253,55 @@ go run main.go
 
 ### Issue: Port Already in Use
 ```powershell
-# Solution 1: Stop all services
-.\runner.ps1 stop
-
-# Solution 2: Manual port cleanup
-# Find process using port
+# Check port usage
 Get-NetTCPConnection -LocalPort 3000
 
 # Kill process
 Stop-Process -Id <PID> -Force
+
+# Or stop all Docker services
+.\runner.ps1 down
 ```
 
 ### Issue: Backend Services Not Starting
 ```powershell
-# 1. Check if infrastructure is running
+# Check Docker container status
 .\runner.ps1 status
 
-# 2. Start infrastructure if needed
+# View container logs
+docker-compose logs auth-service
+docker-compose logs report-service
+
+# Rebuild images
+.\runner.ps1 down
+.\runner.ps1 build
 .\runner.ps1 up
-
-# 3. Check Go installation
-go version
-
-# 4. Check Go modules
-cd services/auth-service
-go mod download
 ```
 
-### Issue: Frontend Not Building
+### Issue: Frontend Not Starting
 ```powershell
-# 1. Check Node installation
-node --version
-npm --version
-
-# 2. Reinstall dependencies
+# Reinstall dependencies
 cd client/web-warga
-rm -rf node_modules
+rm -rf node_modules package-lock.json
 npm install
 
-cd client/dashboard-dinas
-rm -rf node_modules
+cd ../dashboard-dinas
+rm -rf node_modules package-lock.json
 npm install
+
+# Run frontend again
+.\runner.ps1 frontend
 ```
 
-### Issue: Docker Services Not Starting
+### Issue: Docker Build Failed
 ```powershell
-# 1. Check Docker Desktop running
-docker ps
+# Clean Docker cache
+docker system prune -a
 
-# 2. Remove old containers
-docker-compose down -v
+# Rebuild from scratch
+.\runner.ps1 build
 
-# 3. Start fresh
-.\runner.ps1 up
-
-# 4. Initialize storage
-.\runner.ps1 init-storage
+# If still fails, check Dockerfile syntax
 ```
 
 ---
@@ -346,14 +332,12 @@ docker-compose down -v
 | Grafana | 3000* | http://localhost:3000 | admin / admin |
 | Prometheus | 9090 | http://localhost:9090 | - |
 
-*Note: Grafana menggunakan port 3000 di Docker, tapi di-map ke port lain jika konflik dengan Web Warga
-
----
-
-## 🎓 Tips & Best Practices
-
-### 1. Development Workflow
-- Gunakan `.\runner.ps1 dev` untuk full environment
+*Note: Grafana m4 | localhost:5434 | admin / password |
+| MongoDB | 27017 | localhost:27017 | admin / password |
+| RabbitMQ Management | 15672 | http://localhost:15672 | guest / guest |
+| MinIO Console | 9001 | http://localhost:9001 | minioadmin / minioadmin |
+| Grafana | 3002 | http://localhost:3002 | admin / admin |
+| Prometheus | 9090 | http://localhost:9090 | - |
 - Restart individual services jika perlu update code
 - Check `.\runner.ps1 status` secara berkala
 
@@ -362,39 +346,57 @@ docker-compose down -v
 - Monitor Docker resource usage
 - Clean up stopped containers: `docker-compose down -v`
 
-### 3. Debugging
-- Check logs dengan `.\runner.ps1 logs`
-- Use `.\runner.ps1 shell` untuk inspect containers
-- Monitor backend logs di terminal manual saat debugging
+### 3. Deb2 terminal: satu untuk backend (`up`), satu untuk frontend (`frontend`)
+- Backend berjalan di Docker untuk consistency
+- Frontend di development mode untuk hot reload
+- Check status: `.\runner.ps1 status`
+
+### 2. Resource Management
+- Stop backend: `.\runner.ps1 down`
+- Stop frontend: `Ctrl+C` di terminal
+- Clean containers: `docker-compose down -v`
+- Remove images: `docker system prune -a`
+
+### 3. After Code Changes
+- **Backend:** Rebuild required (`.\runner.ps1 build`)
+- **Frontend:** Auto hot-reload
+- **Database schema:** May need migration scripts
 
 ### 4. Git Workflow
 ```powershell
-# Before coding
-.\runner.ps1 dev
+# Start development
+.\runner.ps1 build  # If first time
+.\runner.ps1 up     # Terminal 1
+.\runner.ps1 frontend  # Terminal 2
 
 # After coding
-.\runner.ps1 stop
-git add .
-git commit -m "feat: your changes"
-git push
-```
-
----
-
-## 🆘 Need Help?
-
+Ctrl+C              # Stop frontend
+.\runner.ps1 down   # Stop backend
 Run help command:
+```powershell
+.\runner.ps1 help
+# atau
+### Available Commands
 ```powershell
 .\runner.ps1 help
 # atau
 .\runner.ps1
 ```
 
-Untuk bantuan lebih lanjut, lihat dokumentasi di:
-- `README.md` - Project overview
-- `docker-compose.yml` - Infrastructure config
-- `ARCHITECTURE.md` - System architecture
+**Command Summary:**
+- `build` - Build Docker images (first time)
+- `up` - Start backend services
+- `down` - Stop backend services
+- `frontend` - Start frontend dev servers
+- `status` - Check container status
 
----
+### Documentation
+- [README.md](README.md) - Project overview & quick start
+- [docker-compose.yml](docker-compose.yml) - Infrastructure configuration
+- This guide - Detailed runner script usage
 
-**Happy Coding! 🚀**
+### Common Issues
+1. **Port conflict:** Check and kill conflicting processes
+2. **Build failed:** Clean Docker cache and rebuild
+3. **Container not starting:** Check Docker Desktop is running
+4. **Frontend errors:** Reinstall node_modules
