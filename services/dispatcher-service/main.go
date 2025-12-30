@@ -97,8 +97,7 @@ func main() {
 				continue
 			}
 
-			// Update Status to IN_PROGRESS
-			updateReportStatus(report.ID, "IN_PROGRESS", os.Getenv("REPORT_SERVICE_URL"))
+			// Do not auto-bump status; leave as PENDING until admin processes it
 
 			log.Println("---------------------------------------------------")
 		}

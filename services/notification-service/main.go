@@ -37,8 +37,33 @@ var (
 )
 
 func main() {
+	// Build RabbitMQ URL from environment variables
+	rabbitMQURL := os.Getenv("RABBITMQ_URL")
+	if rabbitMQURL == "" {
+		// Fallback: build URL from individual components
+		host := os.Getenv("RABBITMQ_HOST")
+		if host == "" {
+			host = "localhost"
+		}
+		port := os.Getenv("RABBITMQ_PORT")
+		if port == "" {
+			port = "5672"
+		}
+		user := os.Getenv("RABBITMQ_USER")
+		if user == "" {
+			user = "guest"
+		}
+		pass := os.Getenv("RABBITMQ_PASS")
+		if pass == "" {
+			pass = "guest"
+		}
+		rabbitMQURL = fmt.Sprintf("amqp://%s:%s@%s:%s/", user, pass, host, port)
+	}
+
+	log.Printf("[INFO] Connecting to RabbitMQ at: %s", rabbitMQURL)
+
 	// RabbitMQ connection
-	conn, err := amqp.Dial(os.Getenv("RABBITMQ_URL"))
+	conn, err := amqp.Dial(rabbitMQURL)
 	if err != nil {
 		log.Fatalf("[ERROR] Failed to connect to RabbitMQ: %v", err)
 	}

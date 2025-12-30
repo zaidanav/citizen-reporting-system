@@ -19,6 +19,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 var (
@@ -44,12 +45,30 @@ func mapCategoryToDepartment(category string) []string {
 // mapDepartmentToCategories maps admin department to report categories they handle
 func mapDepartmentToCategories(department string) []string {
 	switch department {
-	case "DINAS KEBERSIHAN":
+	case "General":
+		return []string{"Sampah", "Jalan Rusak", "Drainase", "Fasilitas Umum", "Lampu Jalan", "Polusi", "Traffic & Transport"}
+	case "Kebersihan":
 		return []string{"Sampah"}
-	case "DINAS PU":
-		return []string{"Jalan"}
-	case "KEPOLISIAN":
-		return []string{"Keamanan"}
+	case "Pekerjaan Umum":
+		return []string{"Jalan Rusak", "Drainase", "Fasilitas Umum"}
+	case "Penerangan Jalan":
+		return []string{"Lampu Jalan"}
+	case "Lingkungan Hidup":
+		return []string{"Polusi"}
+	case "Perhubungan":
+		return []string{"Traffic & Transport"}
+	case "general":
+		return []string{"Sampah", "Jalan Rusak", "Drainase", "Fasilitas Umum", "Lampu Jalan", "Polusi", "Traffic & Transport"}
+	case "kebersihan":
+		return []string{"Sampah"}
+	case "pekerjaan_umum":
+		return []string{"Jalan Rusak", "Drainase", "Fasilitas Umum"}
+	case "penerangan":
+		return []string{"Lampu Jalan"}
+	case "lingkungan_hidup":
+		return []string{"Polusi"}
+	case "perhubungan":
+		return []string{"Traffic & Transport"}
 	default:
 		return []string{}
 	}
@@ -91,20 +110,45 @@ func main() {
 	amqpChannel = ch
 	log.Println("[OK] Connected to RabbitMQ")
 
-	http.HandleFunc("/api/reports", middleware.LoggerMiddleware(middleware.AuthMiddleware(reportsHandler)).ServeHTTP)
-	http.HandleFunc("/api/reports/mine", middleware.LoggerMiddleware(middleware.AuthMiddleware(myReportsHandler)).ServeHTTP)
-	http.HandleFunc("/api/reports/", middleware.LoggerMiddleware(middleware.AuthMiddleware(reportDetailHandler)).ServeHTTP)
-	http.HandleFunc("/internal/updates", middleware.LoggerMiddleware(http.HandlerFunc(internalUpdateStatusHandler)).ServeHTTP)
+	// Create mux and register routes
+	mux := http.NewServeMux()
+
+	// Setup HTTP routes
+	mux.Handle("/api/reports", middleware.LoggerMiddleware(middleware.AuthMiddleware(http.HandlerFunc(reportsHandler))))
+	mux.Handle("/api/reports/mine", middleware.LoggerMiddleware(middleware.AuthMiddleware(http.HandlerFunc(myReportsHandler))))
+	mux.Handle("/api/reports/", middleware.LoggerMiddleware(middleware.AuthMiddleware(http.HandlerFunc(reportDetailHandler))))
+	mux.Handle("/internal/updates", middleware.LoggerMiddleware(http.HandlerFunc(internalUpdateStatusHandler)))
 
 	// Admin endpoints (no auth required for now, can be protected later)
-	http.HandleFunc("/admin/reports", middleware.LoggerMiddleware(http.HandlerFunc(adminReportsHandler)).ServeHTTP)
-	http.HandleFunc("/admin/reports/", middleware.LoggerMiddleware(http.HandlerFunc(adminReportDetailHandler)).ServeHTTP)
-	http.HandleFunc("/admin/analytics", middleware.LoggerMiddleware(http.HandlerFunc(adminAnalyticsHandler)).ServeHTTP)
+	// Register specific routes BEFORE generic ones to prevent premature matching
+	mux.Handle("/admin/reports/escalation", middleware.LoggerMiddleware(http.HandlerFunc(adminEscalationHandler)))
+	mux.Handle("/admin/reports/escalate/", middleware.LoggerMiddleware(http.HandlerFunc(adminEscalateReportHandler)))
+	mux.Handle("/admin/reports/forward/", middleware.LoggerMiddleware(http.HandlerFunc(adminForwardReportHandler)))
+	mux.Handle("/admin/analytics", middleware.LoggerMiddleware(http.HandlerFunc(adminAnalyticsHandler)))
+	mux.Handle("/admin/reports", middleware.LoggerMiddleware(http.HandlerFunc(adminReportsHandler)))
+	mux.Handle("/admin/reports/", middleware.LoggerMiddleware(http.HandlerFunc(adminReportDetailHandler)))
 
 	port := ":8082"
 	log.Printf("[INFO] Report Service running on port %s", port)
-	if err := http.ListenAndServe(port, nil); err != nil {
+
+	// Wrap with CORS middleware
+	handler := middleware.CORSMiddleware(mux)
+
+	if err := http.ListenAndServe(port, handler); err != nil {
 		log.Fatalf("[ERROR] Server failed: %v", err)
+	}
+}
+
+// corsPreflightHandler handles preflight CORS requests
+func corsPreflightHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Department, X-Trace-Id, X-Client-Type")
+	w.Header().Set("Access-Control-Max-Age", "3600")
+
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
 	}
 }
 
@@ -207,10 +251,11 @@ func createReport(w http.ResponseWriter, r *http.Request) {
 		IsPublic:    isPublic,
 		ReporterID:  claims.UserID,
 		Reporter:    claims.Email,
-		Status:      "pending",
-		Upvotes:     0,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		// Use uppercase status to stay consistent with admin filtering/UI badges
+		Status:    "PENDING",
+		Upvotes:   0,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -655,7 +700,7 @@ func adminAnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Count by status
 	pendingFilter := bson.M{
-		"status":     "pending",
+		"status":     "PENDING",
 		"created_at": bson.M{"$gte": startDate},
 	}
 	if category, ok := baseFilter["category"]; ok {
@@ -664,7 +709,7 @@ func adminAnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 	pendingCount, _ := db.Collection("reports").CountDocuments(ctx, pendingFilter)
 
 	inProgressFilter := bson.M{
-		"status":     "in-progress",
+		"status":     "IN_PROGRESS",
 		"created_at": bson.M{"$gte": startDate},
 	}
 	if category, ok := baseFilter["category"]; ok {
@@ -673,7 +718,7 @@ func adminAnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 	inProgressCount, _ := db.Collection("reports").CountDocuments(ctx, inProgressFilter)
 
 	completedFilter := bson.M{
-		"status":     "completed",
+		"status":     "RESOLVED",
 		"created_at": bson.M{"$gte": startDate},
 	}
 	if category, ok := baseFilter["category"]; ok {
@@ -712,17 +757,73 @@ func adminAnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 	avgProcessTime := 0.0
 
 	if len(aggregateResult) > 0 {
-		if val, ok := aggregateResult[0]["total_upvotes"]; ok {
-			totalUpvotes = int64(val.(int32))
+		if val, ok := aggregateResult[0]["total_upvotes"]; ok && val != nil {
+			switch v := val.(type) {
+			case int32:
+				totalUpvotes = int64(v)
+			case int64:
+				totalUpvotes = v
+			}
 		}
-		if val, ok := aggregateResult[0]["avg_process_time"]; ok {
-			avgProcessTime = val.(float64)
+		if val, ok := aggregateResult[0]["avg_process_time"]; ok && val != nil {
+			switch v := val.(type) {
+			case float64:
+				avgProcessTime = v
+			case int32:
+				avgProcessTime = float64(v)
+			case int64:
+				avgProcessTime = float64(v)
+			}
 		}
 	}
 
 	completionRate := 0.0
 	if totalCount > 0 {
 		completionRate = (float64(completedCount) / float64(totalCount)) * 100
+	}
+
+	// Get category breakdown
+	categoryPipeline := []bson.M{
+		{
+			"$match": baseFilter,
+		},
+		{
+			"$group": bson.M{
+				"_id":        "$category",
+				"total":      bson.M{"$sum": 1},
+				"selesai":    bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$status", "RESOLVED"}}, 1, 0}}},
+				"pending":    bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$status", "PENDING"}}, 1, 0}}},
+				"inProgress": bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$status", "IN_PROGRESS"}}, 1, 0}}},
+			},
+		},
+		{
+			"$sort": bson.M{"total": -1},
+		},
+	}
+
+	categoryCursor, err := db.Collection("reports").Aggregate(ctx, categoryPipeline)
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to aggregate categories", err.Error())
+		return
+	}
+	defer categoryCursor.Close(ctx)
+
+	var categoryStats []bson.M
+	if err = categoryCursor.All(ctx, &categoryStats); err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to read category aggregation", err.Error())
+		return
+	}
+
+	// Convert category stats to frontend format
+	categoryData := make([]map[string]interface{}, 0)
+	for _, cat := range categoryStats {
+		categoryData = append(categoryData, map[string]interface{}{
+			"name":       cat["_id"],
+			"total":      cat["total"],
+			"selesai":    cat["selesai"],
+			"pending":    cat["pending"],
+			"inProgress": cat["inProgress"],
+		})
 	}
 
 	analytics := map[string]interface{}{
@@ -734,6 +835,7 @@ func adminAnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 		"totalUpvotes":   totalUpvotes,
 		"avgProcessTime": avgProcessTime,
 		"timeRange":      timeRangeStr,
+		"categories":     categoryData,
 	}
 
 	log.Printf("[OK] Analytics generated - Total: %d, Completed: %d, Pending: %d", totalCount, completedCount, pendingCount)
@@ -742,17 +844,23 @@ func adminAnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 
 // Admin endpoint - Get single report by ID
 func adminReportDetailHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		response.Error(w, http.StatusMethodNotAllowed, "Method not allowed", "")
-		return
-	}
-
 	id := r.URL.Path[len("/admin/reports/"):]
 	if id == "" {
 		response.Error(w, http.StatusBadRequest, "Missing report ID", "")
 		return
 	}
 
+	switch r.Method {
+	case http.MethodGet:
+		adminGetReportDetail(w, r, id)
+	case http.MethodPut:
+		adminUpdateReportStatus(w, r, id)
+	default:
+		response.Error(w, http.StatusMethodNotAllowed, "Method not allowed", "")
+	}
+}
+
+func adminGetReportDetail(w http.ResponseWriter, r *http.Request, id string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -775,4 +883,294 @@ func adminReportDetailHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("[OK] Admin fetched report - ID: %s", id)
 	response.Success(w, http.StatusOK, "Report fetched successfully", report)
+}
+
+func adminUpdateReportStatus(w http.ResponseWriter, r *http.Request, id string) {
+	var input struct {
+		Status string `json:"status"`
+		Notes  string `json:"notes"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		response.Error(w, http.StatusBadRequest, "Invalid request payload", err.Error())
+		return
+	}
+
+	validStatuses := map[string]bool{
+		"PENDING":     true,
+		"IN_PROGRESS": true,
+		"RESOLVED":    true,
+		"REJECTED":    true,
+	}
+
+	if !validStatuses[input.Status] {
+		response.Error(w, http.StatusBadRequest, "Invalid status", "")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		response.Error(w, http.StatusBadRequest, "Invalid report ID", err.Error())
+		return
+	}
+
+	update := bson.M{
+		"$set": bson.M{
+			"status":     input.Status,
+			"updated_at": time.Now(),
+		},
+	}
+
+	result, err := db.Collection("reports").UpdateOne(ctx, bson.M{"_id": objID}, update)
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to update status", err.Error())
+		return
+	}
+
+	if result.MatchedCount == 0 {
+		response.Error(w, http.StatusNotFound, "Report not found", "")
+		return
+	}
+
+	log.Printf("[OK] Admin updated report status - ID: %s, Status: %s", id, input.Status)
+
+	// Publish notification event
+	go func() {
+		if err := publishNotificationEvent(id, "Status Laporan Diperbarui", input.Status); err != nil {
+			log.Printf("[WARN] Failed to publish notification: %v", err)
+		}
+	}()
+
+	response.Success(w, http.StatusOK, "Report status updated", nil)
+}
+
+// Admin forward report to external system
+func adminForwardReportHandler(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Path[len("/admin/reports/forward/"):]
+	if id == "" {
+		response.Error(w, http.StatusBadRequest, "Missing report ID", "")
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		response.Error(w, http.StatusMethodNotAllowed, "Method not allowed", "")
+		return
+	}
+
+	var input struct {
+		ForwardTo string `json:"forwardTo"`
+		Notes     string `json:"notes"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		response.Error(w, http.StatusBadRequest, "Invalid request payload", err.Error())
+		return
+	}
+
+	if input.ForwardTo == "" {
+		response.Error(w, http.StatusBadRequest, "forwardTo is required", "")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		response.Error(w, http.StatusBadRequest, "Invalid report ID", err.Error())
+		return
+	}
+
+	// Get report first
+	var report models.Report
+	err = db.Collection("reports").FindOne(ctx, bson.M{"_id": objID}).Decode(&report)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			response.Error(w, http.StatusNotFound, "Report not found", "")
+		} else {
+			response.Error(w, http.StatusInternalServerError, "Failed to fetch report", err.Error())
+		}
+		return
+	}
+
+	// Record forwarding in database
+	forwardRecord := bson.M{
+		"report_id":    objID,
+		"forward_to":   input.ForwardTo,
+		"forwarded_by": r.Header.Get("X-Department"),
+		"notes":        input.Notes,
+		"forwarded_at": time.Now(),
+	}
+
+	_, err = db.Collection("forwarded_reports").InsertOne(ctx, forwardRecord)
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to forward report", err.Error())
+		return
+	}
+
+	// Update original report with forward information
+	update := bson.M{
+		"$set": bson.M{
+			"forwarded_to": input.ForwardTo,
+			"forwarded_at": time.Now(),
+			"updated_at":   time.Now(),
+		},
+		"$push": bson.M{
+			"forward_history": forwardRecord,
+		},
+	}
+
+	_, err = db.Collection("reports").UpdateOne(ctx, bson.M{"_id": objID}, update)
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to update report", err.Error())
+		return
+	}
+
+	log.Printf("[OK] Admin forwarded report - ID: %s, ForwardTo: %s", id, input.ForwardTo)
+
+	// Publish notification event
+	go func() {
+		if err := publishNotificationEvent(id, "Laporan Diteruskan", input.ForwardTo); err != nil {
+			log.Printf("[WARN] Failed to publish notification: %v", err)
+		}
+	}()
+
+	response.Success(w, http.StatusOK, "Report forwarded successfully", map[string]interface{}{
+		"report_id":    id,
+		"forward_to":   input.ForwardTo,
+		"forwarded_at": time.Now(),
+	})
+}
+
+// Admin get escalated reports (reports needing attention)
+func adminEscalationHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		response.Error(w, http.StatusMethodNotAllowed, "Method not allowed", "")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Get filter parameter
+	filter := r.URL.Query().Get("filter")
+	department := r.Header.Get("X-Department")
+
+	// Build query
+	query := bson.M{
+		"status": bson.M{"$in": []string{"PENDING", "IN_PROGRESS"}},
+	}
+
+	// Add department-based category filter
+	if department != "" {
+		allowedCategories := mapDepartmentToCategories(department)
+		if len(allowedCategories) > 0 {
+			query["category"] = bson.M{"$in": allowedCategories}
+		}
+	}
+
+	// Apply filters
+	if filter == "sla-breached" {
+		// Reports where SLA deadline has passed
+		query["sla_deadline"] = bson.M{"$lt": time.Now()}
+		query["is_escalated"] = bson.M{"$ne": true}
+	} else if filter == "escalated" {
+		query["is_escalated"] = true
+	}
+
+	// Fetch reports
+	cursor, err := db.Collection("reports").Find(ctx, query, options.Find().SetSort(bson.M{"created_at": -1}))
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to fetch reports", err.Error())
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var reports []map[string]interface{}
+	if err := cursor.All(ctx, &reports); err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to decode reports", err.Error())
+		return
+	}
+
+	// Add SLA deadline for reports that don't have it (default 48 hours from creation)
+	for _, report := range reports {
+		if _, hasDeadline := report["sla_deadline"]; !hasDeadline {
+			createdAt, ok := report["created_at"].(primitive.DateTime)
+			if ok {
+				deadline := createdAt.Time().Add(48 * time.Hour)
+				report["sla_deadline"] = deadline
+			}
+		}
+	}
+
+	log.Printf("[OK] Admin fetched escalation reports - Count: %d, Filter: %s", len(reports), filter)
+
+	response.Success(w, http.StatusOK, "Escalation reports fetched successfully", reports)
+}
+
+// Admin escalate report to higher authority
+func adminEscalateReportHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		response.Error(w, http.StatusMethodNotAllowed, "Method not allowed", "")
+		return
+	}
+
+	id := r.URL.Path[len("/admin/reports/escalate/"):]
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		response.Error(w, http.StatusBadRequest, "Invalid report ID", err.Error())
+		return
+	}
+
+	// Check if report exists
+	var report bson.M
+	err = db.Collection("reports").FindOne(ctx, bson.M{"_id": objID}).Decode(&report)
+	if err != nil {
+		response.Error(w, http.StatusNotFound, "Report not found", err.Error())
+		return
+	}
+
+	// Check if already escalated
+	if isEscalated, ok := report["is_escalated"].(bool); ok && isEscalated {
+		response.Error(w, http.StatusConflict, "Report is already escalated", "")
+		return
+	}
+
+	// Update report with escalation flag
+	update := bson.M{
+		"$set": bson.M{
+			"is_escalated": true,
+			"escalated_at": time.Now(),
+			"escalated_by": r.Header.Get("X-Department"),
+			"updated_at":   time.Now(),
+		},
+	}
+
+	_, err = db.Collection("reports").UpdateOne(ctx, bson.M{"_id": objID}, update)
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to escalate report", err.Error())
+		return
+	}
+
+	log.Printf("[OK] Admin escalated report - ID: %s", id)
+
+	// Publish notification event
+	go func() {
+		if err := publishNotificationEvent(id, "Laporan Dieskalasi", "Report escalated to higher authority"); err != nil {
+			log.Printf("[WARN] Failed to publish notification: %v", err)
+		}
+	}()
+
+	response.Success(w, http.StatusOK, "Report escalated successfully", map[string]interface{}{
+		"report_id":    id,
+		"is_escalated": true,
+		"escalated_at": time.Now(),
+	})
 }
