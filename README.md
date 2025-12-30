@@ -9,7 +9,7 @@ This repository contains a Proof of Concept (PoC) implementation for a citizen r
 
 ### Prerequisites
 - Docker Desktop
-- Go 1.21+
+- Go 1.23+ (project uses Go toolchain; it may auto-download a newer Go)
 - Node.js 18+
 - PowerShell 5.1+
 
@@ -28,7 +28,7 @@ cd client/dashboard-dinas && npm install
 - 👔 **Dashboard Dinas (Admin):** http://localhost:3001
 - 🐰 **RabbitMQ Console:** http://localhost:15672
 - 🗄️ **MinIO Console:** http://localhost:9001
-- 📊 **Grafana Dashboard:** http://localhost:3000
+- 📊 **Grafana Dashboard:** http://localhost:3002
 
 **Stop all services:** Press `Ctrl+C`
 
@@ -194,13 +194,8 @@ Restart all services and display access URLs & credentials.
 
 ```
 
-6. **Auto-Setup Storage**
-Automatically create buckets and set public policies in MinIO.
-
-```powershell
-.\runner.ps1 init-storage
-
-```
+6. **Storage setup (MinIO)**
+Bucket creation and public-read policy are handled automatically by `report-service` on startup.
 
 7. **Accessing Container Shell**
 Directly enter a container's terminal without looking up container IDs.

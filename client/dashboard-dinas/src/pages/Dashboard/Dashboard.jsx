@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { reportService } from '../../services/reportService';
 import { getDepartmentFromStorage } from '../../utils/jwtHelper';
+import { useNotificationSubscriptionDashboard } from '../../hooks/useNotificationSubscription';
 import { notificationService } from '../../components/Toast';
 import './Dashboard.css';
 
@@ -31,11 +32,20 @@ const Dashboard = () => {
 
   useEffect(() => {
     loadReports();
-    
-    // Poll for new reports every 10 seconds for real-time updates
-    const interval = setInterval(loadReports, 10000);
-    return () => clearInterval(interval);
   }, [filter, department]);
+
+  useNotificationSubscriptionDashboard((event) => {
+    if (!event || !event.type) return;
+
+    if (event.type === 'new_report') {
+      loadReports();
+      notificationService.addNotification({
+        type: 'info',
+        title: event.title || 'Laporan Baru',
+        message: event.message || 'Ada laporan baru masuk',
+      });
+    }
+  });
 
   // Department category mapping for access control
   const getCategoryFilterForDepartment = (dept) => {

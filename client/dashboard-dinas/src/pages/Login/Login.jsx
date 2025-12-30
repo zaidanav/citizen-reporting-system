@@ -56,10 +56,10 @@ const Login = ({ setAuth }) => {
       }
 
       const data = await response.json();
-      const { token, name, role, department: apiDepartment, access_role } = data.data;
+      const { token, id, name, role, department: apiDepartment, access_role } = data.data;
 
       const user = {
-        id: data.data.id || '1',
+        id: id,
         email: formData.email,
         name: name,
         role: role,

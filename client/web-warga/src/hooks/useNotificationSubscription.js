@@ -18,10 +18,10 @@ export const useNotificationSubscription = () => {
 
     const NOTIFICATION_SERVICE_URL = import.meta.env.VITE_NOTIFICATION_URL || 'http://localhost:8084';
 
-    console.log('[Notification] Connecting to:', `${NOTIFICATION_SERVICE_URL}/notifications/subscribe?user_id=${user.id}`);
+    console.log('[Notification] Connecting to:', `${NOTIFICATION_SERVICE_URL}/notifications/subscribe?user_id=${user.id}&access_role=citizen`);
 
     const eventSource = new EventSource(
-      `${NOTIFICATION_SERVICE_URL}/notifications/subscribe?user_id=${user.id}`
+      `${NOTIFICATION_SERVICE_URL}/notifications/subscribe?user_id=${user.id}&access_role=citizen`
     );
 
     eventSource.onopen = () => {
