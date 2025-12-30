@@ -28,15 +28,16 @@
 .time-range-selector {
   display: flex;
   gap: var(--spacing-xs);
-  background-color: var(--bg-tertiary);
+  background-color: var(--bg-card);
   padding: var(--spacing-xs);
   border-radius: var(--radius-md);
+  border: 2px solid var(--border-primary);
 }
 
 .time-btn {
   padding: 10px 20px;
   font-size: var(--font-size-sm);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-secondary);
   background-color: transparent;
   border: none;
@@ -47,11 +48,13 @@
 
 .time-btn:hover {
   color: var(--text-primary);
+  background-color: var(--bg-tertiary);
 }
 
 .time-btn--active {
   background-color: var(--accent-primary);
-  color: var(--text-primary);
+  color: #0D1F2D;
+  font-weight: 700;
 }
 
 /* KPI Grid */
@@ -68,13 +71,27 @@
   gap: var(--spacing-lg);
   padding: var(--spacing-lg);
   background-color: var(--bg-card);
-  border: 1px solid var(--border-primary);
+  border: 2px solid var(--border-primary);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
 }
 
 .kpi-card__icon {
-  font-size: 48px;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background-color: var(--accent-primary);
+  color: #0D1F2D;
+  flex-shrink: 0;
+}
+
+.kpi-card__icon svg {
+  width: 28px;
+  height: 28px;
+  stroke: #0D1F2D;
 }
 
 .kpi-card__value {

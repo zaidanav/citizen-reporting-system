@@ -220,25 +220,25 @@ const Dashboard = () => {
           title="Total Laporan"
           value={counts.all}
           icon="list"
-          color="#2196F3"
+          color="#456882"
         />
         <StatsCard
           title="Menunggu"
           value={counts.PENDING}
           icon="clock"
-          color="#FFC107"
+          color="#234C6A"
         />
         <StatsCard
           title="Diproses"
           value={counts.IN_PROGRESS}
           icon="settings"
-          color="#2196F3"
+          color="#456882"
         />
         <StatsCard
           title="Selesai"
           value={counts.RESOLVED}
-          icon="✓"
-          color="#4CAF50"
+          icon="check"
+          color="#456882"
         />
       </div>
       
@@ -322,7 +322,7 @@ const Dashboard = () => {
                 className="modal-close" 
                 onClick={() => setForwardModal({ show: false, reportId: null, forwardTo: '', notes: '' })}
               >
-                ✕
+                &times;
               </button>
             </div>
             <div className="modal-body">
@@ -375,15 +375,54 @@ const Dashboard = () => {
   );
 };
 
-const StatsCard = ({ title, value, icon, color }) => (
-  <div className="stats-card" style={{ borderLeftColor: color }}>
-    <div className="stats-card__icon" style={{ color }}>{icon}</div>
-    <div className="stats-card__content">
-      <div className="stats-card__value">{value}</div>
-      <div className="stats-card__title">{title}</div>
+const StatsCard = ({ title, value, icon, color }) => {
+  const getIcon = (iconName) => {
+    switch(iconName) {
+      case 'list':
+        return (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="3" y1="12" x2="21" y2="12"/>
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        );
+      case 'clock':
+        return (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+        );
+      case 'settings':
+        return (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 1v6m0 6v6M1 12h6m6 0h6"/>
+          </svg>
+        );
+      case 'check':
+        return (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        );
+      default:
+        return icon;
+    }
+  };
+
+  return (
+    <div className="stats-card" style={{ borderLeftColor: color }}>
+      <div className="stats-card__icon">
+        {getIcon(icon)}
+      </div>
+      <div className="stats-card__content">
+        <div className="stats-card__value">{value}</div>
+        <div className="stats-card__title">{title}</div>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const ReportRow = ({ report, onStatusUpdate, isUpdating, onForward }) => {
   const {
@@ -440,6 +479,9 @@ const ReportRow = ({ report, onStatusUpdate, isUpdating, onForward }) => {
             onClick={() => onStatusUpdate(id, 'IN_PROGRESS')}
             disabled={isUpdating}
           >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
             Proses
           </button>
         )}
@@ -449,18 +491,30 @@ const ReportRow = ({ report, onStatusUpdate, isUpdating, onForward }) => {
             onClick={() => onStatusUpdate(id, 'RESOLVED')}
             disabled={isUpdating}
           >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
             Selesai
           </button>
         )}
         {status === 'RESOLVED' && (
-          <span className="action-btn action-btn--disabled">✓ Selesai</span>
+          <span className="action-btn action-btn--disabled">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            Selesai
+          </span>
         )}
         <button
           className="action-btn action-btn--forward"
           onClick={() => onForward(id)}
           title="Teruskan laporan ke sistem eksternal"
         >
-          ↗ Teruskan
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="7" y1="17" x2="17" y2="7"/>
+            <polyline points="7 7 17 7 17 17"/>
+          </svg>
+          Teruskan
         </button>
       </td>
     </tr>

@@ -21,7 +21,6 @@ const Layout = ({ setAuth }) => {
       <nav className="admin-navbar">
         <div className="admin-navbar-container">
           <div className="admin-navbar-brand">
-            <span className="admin-navbar-logo">🏛️</span>
             <span className="admin-navbar-title">Dashboard Dinas</span>
             {isStrategic && (
               <span className="admin-navbar-badge">Strategis</span>
@@ -32,24 +31,30 @@ const Layout = ({ setAuth }) => {
             <NavLink to="/dashboard" className={({ isActive }) => 
               `admin-navbar-link ${isActive ? 'admin-navbar-link--active' : ''}`
             }>
-              📊 Dashboard
+              Dashboard
             </NavLink>
             <NavLink to="/escalation" className={({ isActive }) => 
               `admin-navbar-link ${isActive ? 'admin-navbar-link--active' : ''}`
             }>
-              ⚠️ Eskalasi
+              Eskalasi
             </NavLink>
             {isStrategic && (
               <NavLink to="/analytics" className={({ isActive }) => 
                 `admin-navbar-link ${isActive ? 'admin-navbar-link--active' : ''}`
               }>
-                📈 Analitik
+                Analitik
               </NavLink>
             )}
           </div>
           
           <div className="admin-navbar-user">
-            <span className="admin-navbar-username">👤 {user?.name || 'Admin'}</span>
+            <span className="admin-navbar-username">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+              {user?.name || 'Admin'}
+            </span>
             <button onClick={handleLogout} className="admin-navbar-logout">
               Keluar
             </button>

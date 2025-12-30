@@ -33,32 +33,38 @@
   gap: var(--spacing-lg);
   padding: var(--spacing-lg);
   background-color: var(--bg-card);
-  border: 1px solid var(--border-primary);
+  border: 2px solid var(--border-primary);
   border-radius: var(--radius-md);
   transition: all 0.2s;
 }
 
 .stat-card--warning {
-  border-left: 4px solid #FFC107;
+  border-left: 4px solid var(--accent-primary);
 }
 
 .stat-card--info {
-  border-left: 4px solid #2196F3;
+  border-left: 4px solid var(--accent-primary);
 }
 
 .stat-card--primary {
-  border-left: 4px solid #9C27B0;
+  border-left: 4px solid var(--accent-primary);
 }
 
 .stat-card__icon {
-  font-size: 32px;
   width: 48px;
   height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-sm);
-  background: var(--bg-hover);
+  border-radius: var(--radius-md);
+  background-color: var(--accent-primary);
+  color: #0D1F2D;
+}
+
+.stat-card__icon svg {
+  width: 24px;
+  height: 24px;
+  stroke: #0D1F2D;
 }
 
 .stat-card__content {
@@ -158,50 +164,67 @@
   padding: 4px 12px;
   border-radius: var(--radius-sm);
   font-size: var(--font-size-xs);
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .sla-badge--ok {
-  background-color: rgba(76, 175, 80, 0.1);
-  color: #4CAF50;
-  border: 1px solid rgba(76, 175, 80, 0.3);
+  background-color: var(--accent-primary);
+  color: #0D1F2D;
+  border: 1px solid var(--accent-primary);
 }
 
 .sla-badge--warning {
-  background-color: rgba(255, 193, 7, 0.1);
-  color: #FFC107;
-  border: 1px solid rgba(255, 193, 7, 0.3);
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--accent-primary);
 }
 
 .sla-badge--breached {
-  background-color: rgba(244, 67, 54, 0.1);
-  color: #F44336;
-  border: 1px solid rgba(244, 67, 54, 0.3);
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
 }
 
 .sla-badge--escalated {
-  background-color: rgba(33, 150, 243, 0.1);
-  color: #2196F3;
-  border: 1px solid rgba(33, 150, 243, 0.3);
+  background-color: var(--accent-primary);
+  color: #0D1F2D;
+  border: 1px solid var(--accent-primary);
 }
 
 .sla-badge--no-sla {
-  background-color: rgba(158, 158, 158, 0.1);
-  color: #9E9E9E;
-  border: 1px solid rgba(158, 158, 158, 0.3);
+  background-color: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-primary);
 }
 
-/* Action Button Escalate */
+/* Action Button Escalate - Consistent Sizing */
 .action-btn--escalate {
-  background-color: rgba(255, 193, 7, 0.1);
-  color: #FFC107;
-  border: 1px solid rgba(255, 193, 7, 0.3);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  background-color: var(--accent-warning);
+  color: #0D1F2D;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .action-btn--escalate:hover {
-  background-color: rgba(255, 193, 7, 0.2);
+  background-color: var(--accent-primary-hover);
+  color: #FFFFFF;
+}
+
+.action-btn--escalate svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 
 /* Loading State */

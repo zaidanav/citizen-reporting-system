@@ -64,9 +64,9 @@ const Analytics = () => {
 
   // Prepare data for charts
   const allStatusData = [
-    { name: 'Selesai', value: analyticsData.completed || 0, color: '#4CAF50' },
-    { name: 'Diproses', value: analyticsData.inProgress || 0, color: '#2196F3' },
-    { name: 'Menunggu', value: analyticsData.pending || 0, color: '#FFC107' },
+    { name: 'Selesai', value: analyticsData.completed || 0, color: '#5A7A96' },
+    { name: 'Diproses', value: analyticsData.inProgress || 0, color: '#456882' },
+    { name: 'Menunggu', value: analyticsData.pending || 0, color: '#234C6A' },
   ];
   
   // Filter out status dengan value 0
@@ -153,29 +153,34 @@ const Analytics = () => {
                 cx="50%"
                 cy="50%"
                 outerRadius={80}
-                fill="#8884d8"
+                fill="#456882"
                 dataKey="value"
               >
                 {statusData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
-              <Legend verticalAlign="bottom" height={36} />
+              <Legend 
+                verticalAlign="bottom" 
+                height={36}
+                iconType="circle"
+                formatter={(value) => <span style={{ color: '#FFFFFF', fontWeight: '600', fontSize: '14px' }}>{value}</span>}
+              />
               <Tooltip formatter={(value) => [`${value} laporan`, 'Jumlah']} labelFormatter={(value) => ''} />
             </PieChart>
           </ResponsiveContainer>
-          <div style={{ marginTop: '20px', padding: '0 20px', fontSize: '14px', color: '#B0B0B0' }}>
+          <div style={{ marginTop: '20px', padding: '0 20px', fontSize: '15px', color: '#FFFFFF' }}>
             <div style={{ marginBottom: '10px' }}>
-              <strong style={{ color: '#FFC107' }}>Menunggu:</strong> {analyticsData.pending || 0} laporan
+              <strong style={{ color: '#B8C9D9', fontWeight: '700' }}>Menunggu:</strong> <span style={{ color: '#FFFFFF', fontWeight: '600' }}>{analyticsData.pending || 0} laporan</span>
             </div>
             {analyticsData.inProgress > 0 && (
               <div style={{ marginBottom: '10px' }}>
-                <strong style={{ color: '#2196F3' }}>Diproses:</strong> {analyticsData.inProgress || 0} laporan
+                <strong style={{ color: '#B8C9D9', fontWeight: '700' }}>Diproses:</strong> <span style={{ color: '#FFFFFF', fontWeight: '600' }}>{analyticsData.inProgress || 0} laporan</span>
               </div>
             )}
             {analyticsData.completed > 0 && (
               <div>
-                <strong style={{ color: '#4CAF50' }}>Selesai:</strong> {analyticsData.completed || 0} laporan
+                <strong style={{ color: '#B8C9D9', fontWeight: '700' }}>Selesai:</strong> <span style={{ color: '#FFFFFF', fontWeight: '600' }}>{analyticsData.completed || 0} laporan</span>
               </div>
             )}
           </div>
@@ -189,23 +194,28 @@ const Analytics = () => {
               <p>Tidak ada data kategori untuk periode ini</p>
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={categoryData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#3A3A3A" />
-                <XAxis dataKey="name" stroke="#B0B0B0" />
-                <YAxis stroke="#B0B0B0" />
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <ResponsiveContainer width="90%" height={300}>
+                <BarChart data={categoryData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#234C6A" />
+                  <XAxis dataKey="name" stroke="#FFFFFF" />
+                  <YAxis stroke="#FFFFFF" />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: '#2A2A2A',
-                    border: '1px solid #3A3A3A',
+                    backgroundColor: '#1B3C53',
+                    border: '1px solid #456882',
                     borderRadius: '8px',
                   }}
                 />
-                <Legend />
-                <Bar dataKey="total" fill="#2196F3" name="Total Laporan" />
-                <Bar dataKey="selesai" fill="#4CAF50" name="Selesai" />
+                <Legend 
+                  iconType="circle"
+                  formatter={(value) => <span style={{ color: '#FFFFFF', fontWeight: '600', fontSize: '14px' }}>{value}</span>}
+                />
+                <Bar dataKey="total" fill="#234C6A" name="Total Laporan" />
+                <Bar dataKey="selesai" fill="#456882" name="Selesai" />
               </BarChart>
-            </ResponsiveContainer>
+              </ResponsiveContainer>
+            </div>
           )}
         </div>
       </div>
@@ -260,19 +270,43 @@ const Analytics = () => {
 };
 
 const KPICard = ({ title, value, icon, trend, trendUp }) => {
-  const getIconLabel = (iconName) => {
-    const icons = {
-      'list': '≡',
-      'check': '✓',
-      'clock': '⧐',
-      'support': '+'
-    };
-    return icons[iconName] || iconName;
+  const getIcon = (iconName) => {
+    switch(iconName) {
+      case 'list':
+        return (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="3" y1="12" x2="21" y2="12"/>
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        );
+      case 'check':
+        return (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        );
+      case 'clock':
+        return (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+        );
+      case 'support':
+        return (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+          </svg>
+        );
+      default:
+        return iconName;
+    }
   };
 
   return (
     <div className="kpi-card">
-      <div className="kpi-card__icon">{getIconLabel(icon)}</div>
+      <div className="kpi-card__icon">{getIcon(icon)}</div>
       <div className="kpi-card__content">
         <div className="kpi-card__value">{value}</div>
         <div className="kpi-card__title">{title}</div>

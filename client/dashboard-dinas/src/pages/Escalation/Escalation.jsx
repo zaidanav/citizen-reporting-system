@@ -114,21 +114,38 @@ const Escalation = () => {
       {/* Stats Cards */}
       <div className="escalation-stats">
         <div className="stat-card stat-card--warning">
-          <div className="stat-card__icon">⚠</div>
+          <div className="stat-card__icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
           <div className="stat-card__content">
             <div className="stat-card__value">{breachedCount}</div>
             <div className="stat-card__label">Melewati SLA</div>
           </div>
         </div>
         <div className="stat-card stat-card--info">
-          <div className="stat-card__icon">⬆</div>
+          <div className="stat-card__icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="12" y1="19" x2="12" y2="5"/>
+              <polyline points="5 12 12 5 19 12"/>
+            </svg>
+          </div>
           <div className="stat-card__content">
             <div className="stat-card__value">{escalatedCount}</div>
             <div className="stat-card__label">Sudah Dieskalasi</div>
           </div>
         </div>
         <div className="stat-card stat-card--primary">
-          <div className="stat-card__icon">≡</div>
+          <div className="stat-card__icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="3" y1="12" x2="21" y2="12"/>
+              <line x1="3" y1="6" x2="21" y2="6"/>
+              <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+          </div>
           <div className="stat-card__content">
             <div className="stat-card__value">{escalatedReports.length}</div>
             <div className="stat-card__label">Total Monitoring</div>
@@ -211,11 +228,20 @@ const Escalation = () => {
                           className="action-btn action-btn--escalate"
                           onClick={() => handleEscalate(reportId)}
                         >
-                          ⬆ Eskalasi
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <line x1="12" y1="19" x2="12" y2="5"/>
+                            <polyline points="5 12 12 5 19 12"/>
+                          </svg>
+                          Eskalasi
                         </button>
                       )}
                       {report.is_escalated && (
-                        <span className="action-btn action-btn--disabled">✓ Sudah Dieskalasi</span>
+                        <span className="action-btn action-btn--disabled">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="20 6 9 17 4 12"/>
+                          </svg>
+                          Dieskalasi
+                        </span>
                       )}
                     </td>
                   </tr>
