@@ -65,19 +65,8 @@ const Dashboard = () => {
     try {
       setLoading(true);
       
-      // Convert filter status to uppercase format expected by backend
-      let statusFilter = undefined;
-      if (filter !== 'all') {
-        const statusMap = {
-          'pending': 'PENDING',
-          'in-progress': 'IN_PROGRESS',
-          'completed': 'RESOLVED',
-        };
-        statusFilter = statusMap[filter] || filter;
-      }
-      
+      // Always fetch ALL reports without status filter for accurate counts
       const filters = {
-        status: statusFilter,
         timeRange: '30d', // Default to 30 days
       };
       
@@ -87,24 +76,28 @@ const Dashboard = () => {
         filters.categories = allowedCategories.join(',');
       }
       
+      console.log('[Dashboard] Loading reports with filters:', filters);
       const reportsData = await reportService.getAllReports(filters);
       console.log('[Dashboard] Reports loaded:', reportsData);
+      console.log('[Dashboard] Number of reports:', reportsData?.length || 0);
       
-      // Client-side filter as additional layer (defense in depth)
-      let filteredReports = Array.isArray(reportsData) ? reportsData : [];
+      // Normalize and filter reports
+      let allReports = Array.isArray(reportsData) ? reportsData : [];
 
-      // Normalize status to uppercase so badges/actions work even if backend data is lowercase
-      filteredReports = filteredReports.map((r) => ({
+      // Normalize status to uppercase
+      allReports = allReports.map((r) => ({
         ...r,
         status: (r.status || '').toUpperCase(),
       }));
+      
+      // Apply category filter if needed
       if (allowedCategories) {
-        filteredReports = filteredReports.filter(report => 
+        allReports = allReports.filter(report => 
           allowedCategories.includes(report.category)
         );
       }
       
-      setReports(filteredReports);
+      setReports(allReports);
     } catch (error) {
       console.error('Error loading reports:', error);
       notificationService.addNotification({
@@ -126,19 +119,11 @@ const Dashboard = () => {
     try {
       await reportService.updateReportStatus(reportId, newStatus, '');
       
-      // Update local state - convert the newStatus to uppercase format stored in DB
-      const statusMap = {
-        'pending': 'PENDING',
-        'in-progress': 'IN_PROGRESS',
-        'completed': 'RESOLVED',
-        'rejected': 'REJECTED',
-      };
-      const dbStatus = statusMap[newStatus] || newStatus.toUpperCase();
-      
+      // Update local state - newStatus is already in uppercase format
       setReports((prev) =>
         prev.map((report) =>
           report.id === reportId
-            ? { ...report, status: dbStatus }
+            ? { ...report, status: newStatus }
             : report
         )
       );
@@ -146,7 +131,7 @@ const Dashboard = () => {
       notificationService.addNotification({
         type: 'success',
         title: 'Status Diperbarui',
-        message: `Status laporan berhasil diubah menjadi ${getStatusLabel(dbStatus)}`,
+        message: `Status laporan berhasil diubah menjadi ${getStatusLabel(newStatus)}`,
       });
     } catch (error) {
       console.error('Error updating status:', error);
@@ -194,13 +179,22 @@ const Dashboard = () => {
   const getStatusCounts = () => {
     return {
       all: reports.length,
-      pending: reports.filter((r) => r.status === 'PENDING').length,
-      'in-progress': reports.filter((r) => r.status === 'IN_PROGRESS').length,
-      completed: reports.filter((r) => r.status === 'RESOLVED').length,
+      PENDING: reports.filter((r) => r.status === 'PENDING').length,
+      IN_PROGRESS: reports.filter((r) => r.status === 'IN_PROGRESS').length,
+      RESOLVED: reports.filter((r) => r.status === 'RESOLVED').length,
     };
   };
 
+  // Get filtered reports for display based on selected filter
+  const getFilteredReports = () => {
+    if (filter === 'all') {
+      return reports;
+    }
+    return reports.filter((r) => r.status === filter);
+  };
+
   const counts = getStatusCounts();
+  const filteredReports = getFilteredReports();
 
   const openForwardModal = (reportId) => {
     setForwardModal({ show: true, reportId, forwardTo: '', notes: '' });
@@ -230,19 +224,19 @@ const Dashboard = () => {
         />
         <StatsCard
           title="Menunggu"
-          value={counts.pending}
+          value={counts.PENDING}
           icon="clock"
           color="#FFC107"
         />
         <StatsCard
           title="Diproses"
-          value={counts['in-progress']}
+          value={counts.IN_PROGRESS}
           icon="settings"
           color="#2196F3"
         />
         <StatsCard
           title="Selesai"
-          value={counts.completed}
+          value={counts.RESOLVED}
           icon="✓"
           color="#4CAF50"
         />
@@ -257,22 +251,22 @@ const Dashboard = () => {
           Semua ({counts.all})
         </button>
         <button
-          className={`filter-btn ${filter === 'pending' ? 'filter-btn--active' : ''}`}
-          onClick={() => setFilter('pending')}
+          className={`filter-btn ${filter === 'PENDING' ? 'filter-btn--active' : ''}`}
+          onClick={() => setFilter('PENDING')}
         >
-          Menunggu ({counts.pending})
+          Menunggu ({counts.PENDING})
         </button>
         <button
-          className={`filter-btn ${filter === 'in-progress' ? 'filter-btn--active' : ''}`}
-          onClick={() => setFilter('in-progress')}
+          className={`filter-btn ${filter === 'IN_PROGRESS' ? 'filter-btn--active' : ''}`}
+          onClick={() => setFilter('IN_PROGRESS')}
         >
-          Diproses ({counts['in-progress']})
+          Diproses ({counts.IN_PROGRESS})
         </button>
         <button
-          className={`filter-btn ${filter === 'completed' ? 'filter-btn--active' : ''}`}
-          onClick={() => setFilter('completed')}
+          className={`filter-btn ${filter === 'RESOLVED' ? 'filter-btn--active' : ''}`}
+          onClick={() => setFilter('RESOLVED')}
         >
-          Selesai ({counts.completed})
+          Selesai ({counts.RESOLVED})
         </button>
       </div>
       
@@ -283,7 +277,7 @@ const Dashboard = () => {
             <div className="spinner"></div>
             <p>Memuat laporan...</p>
           </div>
-        ) : reports.length === 0 ? (
+        ) : filteredReports.length === 0 ? (
           <div className="empty-state">
             <h3>Tidak Ada Laporan</h3>
             <p>Tidak ada laporan yang sesuai dengan filter</p>
@@ -304,7 +298,7 @@ const Dashboard = () => {
               </tr>
             </thead>
             <tbody>
-              {reports.map((report) => (
+              {filteredReports.map((report) => (
                 <ReportRow
                   key={report.id}
                   report={report}
@@ -443,7 +437,7 @@ const ReportRow = ({ report, onStatusUpdate, isUpdating, onForward }) => {
         {status === 'PENDING' && (
           <button
             className="action-btn action-btn--process"
-            onClick={() => onStatusUpdate(id, 'in-progress')}
+            onClick={() => onStatusUpdate(id, 'IN_PROGRESS')}
             disabled={isUpdating}
           >
             Proses
@@ -452,7 +446,7 @@ const ReportRow = ({ report, onStatusUpdate, isUpdating, onForward }) => {
         {status === 'IN_PROGRESS' && (
           <button
             className="action-btn action-btn--complete"
-            onClick={() => onStatusUpdate(id, 'completed')}
+            onClick={() => onStatusUpdate(id, 'RESOLVED')}
             disabled={isUpdating}
           >
             Selesai
@@ -475,9 +469,9 @@ const ReportRow = ({ report, onStatusUpdate, isUpdating, onForward }) => {
 
 const getFilterLabel = (filter) => {
   const labels = {
-    pending: 'Menunggu',
-    'in-progress': 'Diproses',
-    completed: 'Selesai',
+    PENDING: 'Menunggu',
+    IN_PROGRESS: 'Diproses',
+    RESOLVED: 'Selesai',
   };
   return labels[filter] || filter;
 };

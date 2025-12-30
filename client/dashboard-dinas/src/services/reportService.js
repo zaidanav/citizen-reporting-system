@@ -24,18 +24,9 @@ export const reportService = {
   // Update report status
   updateReportStatus: async (reportId, status, notes = '') => {
     try {
-      // Convert lowercase status to uppercase with underscores (pending -> PENDING, in-progress -> IN_PROGRESS)
-      const statusMap = {
-        'pending': 'PENDING',
-        'in-progress': 'IN_PROGRESS',
-        'completed': 'RESOLVED',
-        'rejected': 'REJECTED',
-      };
-      
-      const mappedStatus = statusMap[status] || status.toUpperCase();
-      
+      // Status is already in uppercase format (PENDING, IN_PROGRESS, RESOLVED)
       const response = await api.put(`/admin/reports/${reportId}`, {
-        status: mappedStatus,
+        status: status,
         notes,
       });
       console.log('[Service] Update status response:', response.data);

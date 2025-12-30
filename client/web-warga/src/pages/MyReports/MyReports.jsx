@@ -13,7 +13,7 @@ const MyReports = () => {
   
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all'); // all, pending, in-progress, completed
+  const [filter, setFilter] = useState('all'); // all, PENDING, IN_PROGRESS, RESOLVED
 
   useEffect(() => {
     loadMyReports();
@@ -46,9 +46,9 @@ const MyReports = () => {
   const getStatusCounts = () => {
     return {
       all: reports.length,
-      pending: reports.filter((r) => r.status === 'pending').length,
-      'in-progress': reports.filter((r) => r.status === 'in-progress').length,
-      completed: reports.filter((r) => r.status === 'completed').length,
+      PENDING: reports.filter((r) => r.status === 'PENDING').length,
+      IN_PROGRESS: reports.filter((r) => r.status === 'IN_PROGRESS').length,
+      RESOLVED: reports.filter((r) => r.status === 'RESOLVED').length,
     };
   };
 
@@ -80,25 +80,25 @@ const MyReports = () => {
             <span className="filter-tab__count">{counts.all}</span>
           </button>
           <button
-            className={`filter-tab ${filter === 'pending' ? 'filter-tab--active' : ''}`}
-            onClick={() => setFilter('pending')}
+            className={`filter-tab ${filter === 'PENDING' ? 'filter-tab--active' : ''}`}
+            onClick={() => setFilter('PENDING')}
           >
             Menunggu
-            <span className="filter-tab__count filter-tab__count--pending">{counts.pending}</span>
+            <span className="filter-tab__count filter-tab__count--pending">{counts.PENDING}</span>
           </button>
           <button
-            className={`filter-tab ${filter === 'in-progress' ? 'filter-tab--active' : ''}`}
-            onClick={() => setFilter('in-progress')}
+            className={`filter-tab ${filter === 'IN_PROGRESS' ? 'filter-tab--active' : ''}`}
+            onClick={() => setFilter('IN_PROGRESS')}
           >
             Diproses
-            <span className="filter-tab__count filter-tab__count--in-progress">{counts['in-progress']}</span>
+            <span className="filter-tab__count filter-tab__count--in-progress">{counts.IN_PROGRESS}</span>
           </button>
           <button
-            className={`filter-tab ${filter === 'completed' ? 'filter-tab--active' : ''}`}
-            onClick={() => setFilter('completed')}
+            className={`filter-tab ${filter === 'RESOLVED' ? 'filter-tab--active' : ''}`}
+            onClick={() => setFilter('RESOLVED')}
           >
             Selesai
-            <span className="filter-tab__count filter-tab__count--completed">{counts.completed}</span>
+            <span className="filter-tab__count filter-tab__count--completed">{counts.RESOLVED}</span>
           </button>
         </div>
         
@@ -255,9 +255,9 @@ const MyReportCard = ({ report }) => {
 
 const getFilterLabel = (filter) => {
   const labels = {
-    pending: 'Menunggu',
-    'in-progress': 'Diproses',
-    completed: 'Selesai',
+    PENDING: 'Menunggu',
+    IN_PROGRESS: 'Diproses',
+    RESOLVED: 'Selesai',
   };
   return labels[filter] || filter;
 };

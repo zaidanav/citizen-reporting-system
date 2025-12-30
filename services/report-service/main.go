@@ -1,6 +1,5 @@
 package main
 
-
 import (
 	"bytes"
 	"context"
@@ -18,8 +17,8 @@ import (
 	"citizen-reporting-system/pkg/database"
 	"citizen-reporting-system/pkg/middleware"
 	"citizen-reporting-system/pkg/queue"
-	"citizen-reporting-system/pkg/security"
 	"citizen-reporting-system/pkg/response"
+	"citizen-reporting-system/pkg/security"
 	"citizen-reporting-system/services/report-service/models"
 
 	"github.com/minio/minio-go/v7"
@@ -203,7 +202,7 @@ func main() {
 	// Register specific routes BEFORE generic ones to prevent premature matching
 	mux.Handle("/api/reports/mine", middleware.LoggerMiddleware(middleware.AuthMiddleware(http.HandlerFunc(myReportsHandler))))
 	mux.Handle("/api/reports/upload", middleware.LoggerMiddleware(middleware.AuthMiddleware(http.HandlerFunc(uploadImageHandler))))
-	
+
 	// GET /api/reports is public (no auth required, but can use token for upvote status)
 	mux.Handle("/api/reports", middleware.LoggerMiddleware(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -215,7 +214,7 @@ func main() {
 			}
 		}),
 	))
-	
+
 	// Generic route for report detail (with ID)
 	mux.Handle("/api/reports/", middleware.LoggerMiddleware(middleware.AuthMiddleware(http.HandlerFunc(reportDetailHandler))))
 	mux.Handle("/internal/updates", middleware.LoggerMiddleware(http.HandlerFunc(internalUpdateStatusHandler)))
@@ -441,17 +440,17 @@ func createReport(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[INFO] Creating report - Privacy: %s, IsPublic: %v, IsAnonymous: %v", input.Privacy, isPublic, isAnon)
 
 	newReport := models.Report{
-		ID:          primitive.NewObjectID(),
-		Title:       input.Title,
-		Description: input.Description,
-		Category:    input.Category,
-		Location:    input.Location,
-		ImageURL:    input.ImageUrl,
-		IsAnonymous: isAnon,
-		IsPublic:    isPublic,
-		ReporterID:  reporterID,
+		ID:            primitive.NewObjectID(),
+		Title:         input.Title,
+		Description:   input.Description,
+		Category:      input.Category,
+		Location:      input.Location,
+		ImageURL:      input.ImageUrl,
+		IsAnonymous:   isAnon,
+		IsPublic:      isPublic,
+		ReporterID:    reporterID,
 		ReporterIDEnc: reporterIDEnc,
-		Reporter:    reporter,
+		Reporter:      reporter,
 		// Use uppercase status to stay consistent with admin filtering/UI badges
 		Status:    "PENDING",
 		Upvotes:   0,

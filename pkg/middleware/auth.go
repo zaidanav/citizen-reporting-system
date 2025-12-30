@@ -76,7 +76,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 func OptionalAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
-		
+
 		// If no auth header, continue without user context
 		if authHeader == "" {
 			next.ServeHTTP(w, r)
@@ -110,4 +110,3 @@ func OptionalAuthMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
-

@@ -14,12 +14,13 @@ const Escalation = () => {
     // Poll for updates every 30 seconds
     const interval = setInterval(loadEscalatedReports, 30000);
     return () => clearInterval(interval);
-  }, [filter]);
+  }, []);
 
   const loadEscalatedReports = async () => {
     try {
       setLoading(true);
-      const data = await reportService.getEscalatedReports(filter);
+      // Always fetch all escalated reports without filter for accurate counts
+      const data = await reportService.getEscalatedReports('all');
       const normalized = Array.isArray(data)
         ? data.map((r) => ({
             ...r,
