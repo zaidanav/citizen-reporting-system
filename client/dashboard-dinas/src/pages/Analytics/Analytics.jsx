@@ -13,6 +13,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { reportService } from '../../services/reportService';
+import { getDepartmentFromStorage } from '../../utils/jwtHelper';
 import './Analytics.css';
 
 const Analytics = () => {
@@ -61,20 +62,22 @@ const Analytics = () => {
     );
   }
 
-  // Prepare data for charts (mock data for demonstration)
-  const statusData = [
-    { name: 'Selesai', value: analyticsData.completed || 45, color: '#4CAF50' },
-    { name: 'Diproses', value: analyticsData.inProgress || 30, color: '#2196F3' },
-    { name: 'Menunggu', value: analyticsData.pending || 25, color: '#FFC107' },
+  // Prepare data for charts
+  const allStatusData = [
+    { name: 'Selesai', value: analyticsData.completed || 0, color: '#4CAF50' },
+    { name: 'Diproses', value: analyticsData.inProgress || 0, color: '#2196F3' },
+    { name: 'Menunggu', value: analyticsData.pending || 0, color: '#FFC107' },
   ];
+  
+  // Filter out status dengan value 0
+  const statusData = allStatusData.filter(s => s.value > 0);
 
-  const categoryData = [
-    { name: 'Jalan Rusak', total: 45, selesai: 30 },
-    { name: 'Sampah', total: 38, selesai: 28 },
-    { name: 'Penerangan', total: 32, selesai: 25 },
-    { name: 'Drainase', total: 28, selesai: 20 },
-    { name: 'Fasilitas Umum', total: 22, selesai: 18 },
-  ];
+  // Use real category data from API
+  const categoryData = (analyticsData.categories || []).map(cat => ({
+    name: cat.name,
+    total: cat.total,
+    selesai: cat.selesai || 0,
+  }));
 
   return (
     <div className="analytics-page">
@@ -110,30 +113,30 @@ const Analytics = () => {
       <div className="kpi-grid">
         <KPICard
           title="Total Laporan"
-          value={analyticsData.total || 100}
+          value={analyticsData.total || 0}
           icon="list"
-          trend="+12%"
+          trend={`${analyticsData.total > 0 ? '+' : ''}${analyticsData.total}`}
           trendUp={true}
         />
         <KPICard
           title="Tingkat Penyelesaian"
-          value={`${analyticsData.completionRate || 75}%`}
+          value={`${Math.round(analyticsData.completionRate || 0)}%`}
           icon="check"
-          trend="+5%"
+          trend={`${analyticsData.completed || 0} dari ${analyticsData.total || 0}`}
           trendUp={true}
         />
         <KPICard
           title="Rata-rata Waktu Proses"
-          value={`${analyticsData.avgProcessTime || 3.5} hari`}
+          value={`${(analyticsData.avgProcessTime || 0).toFixed(1)} hari`}
           icon="clock"
-          trend="-8%"
+          trend={analyticsData.avgProcessTime > 0 ? 'Waktu aktual' : 'Belum ada data'}
           trendUp={true}
         />
         <KPICard
           title="Dukungan Warga"
-          value={analyticsData.totalUpvotes || 450}
+          value={analyticsData.totalUpvotes || 0}
           icon="support"
-          trend="+18%"
+          trend={`${analyticsData.totalUpvotes || 0} upvotes`}
           trendUp={true}
         />
       </div>
@@ -149,9 +152,7 @@ const Analytics = () => {
                 data={statusData}
                 cx="50%"
                 cy="50%"
-                labelLine={false}
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                outerRadius={100}
+                outerRadius={80}
                 fill="#8884d8"
                 dataKey="value"
               >
@@ -159,31 +160,53 @@ const Analytics = () => {
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip />
+              <Legend verticalAlign="bottom" height={36} />
+              <Tooltip formatter={(value) => [`${value} laporan`, 'Jumlah']} labelFormatter={(value) => ''} />
             </PieChart>
           </ResponsiveContainer>
+          <div style={{ marginTop: '20px', padding: '0 20px', fontSize: '14px', color: '#B0B0B0' }}>
+            <div style={{ marginBottom: '10px' }}>
+              <strong style={{ color: '#FFC107' }}>Menunggu:</strong> {analyticsData.pending || 0} laporan
+            </div>
+            {analyticsData.inProgress > 0 && (
+              <div style={{ marginBottom: '10px' }}>
+                <strong style={{ color: '#2196F3' }}>Diproses:</strong> {analyticsData.inProgress || 0} laporan
+              </div>
+            )}
+            {analyticsData.completed > 0 && (
+              <div>
+                <strong style={{ color: '#4CAF50' }}>Selesai:</strong> {analyticsData.completed || 0} laporan
+              </div>
+            )}
+          </div>
         </div>
         
         {/* Category Performance - Bar Chart */}
         <div className="chart-card chart-card--wide">
           <h3 className="chart-title">Kinerja per Kategori</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={categoryData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#3A3A3A" />
-              <XAxis dataKey="name" stroke="#B0B0B0" />
-              <YAxis stroke="#B0B0B0" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#2A2A2A',
-                  border: '1px solid #3A3A3A',
-                  borderRadius: '8px',
-                }}
-              />
-              <Legend />
-              <Bar dataKey="total" fill="#2196F3" name="Total Laporan" />
-              <Bar dataKey="selesai" fill="#4CAF50" name="Selesai" />
-            </BarChart>
-          </ResponsiveContainer>
+          {categoryData.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#888' }}>
+              <p>Tidak ada data kategori untuk periode ini</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={categoryData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#3A3A3A" />
+                <XAxis dataKey="name" stroke="#B0B0B0" />
+                <YAxis stroke="#B0B0B0" />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#2A2A2A',
+                    border: '1px solid #3A3A3A',
+                    borderRadius: '8px',
+                  }}
+                />
+                <Legend />
+                <Bar dataKey="total" fill="#2196F3" name="Total Laporan" />
+                <Bar dataKey="selesai" fill="#4CAF50" name="Selesai" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
       
@@ -191,25 +214,44 @@ const Analytics = () => {
       <div className="insights-section">
         <h2 className="insights-title">Insight Kunci</h2>
         <div className="insights-grid">
-          <InsightCard
-            icon="target"
-            title="Performa Terbaik"
-            description="Kategori 'Penerangan' memiliki tingkat penyelesaian tertinggi (78%)"
-          />
-          <InsightCard
-            icon="alert"
-            title="Perlu Perhatian"
-            description="Kategori 'Jalan Rusak' memiliki waktu proses rata-rata terlama (5.2 hari)"
-          />
+          {categoryData.length > 0 && (
+            <>
+              {(() => {
+                const bestCategory = categoryData.reduce((prev, current) => 
+                  current.selesai > (prev.selesai || 0) ? current : prev
+                );
+                const bestRate = bestCategory.total ? ((bestCategory.selesai / bestCategory.total) * 100).toFixed(0) : 0;
+                return (
+                  <InsightCard
+                    icon="target"
+                    title="Performa Terbaik"
+                    description={`Kategori '${bestCategory.name}' memiliki tingkat penyelesaian tertinggi (${bestRate}%)`}
+                  />
+                );
+              })()}
+              {(() => {
+                const worstCategory = categoryData.reduce((prev, current) => 
+                  (current.total - current.selesai) > (prev.total - prev.selesai) ? current : prev
+                );
+                return (
+                  <InsightCard
+                    icon="alert"
+                    title="Perlu Perhatian"
+                    description={`Kategori '${worstCategory.name}' memiliki ${(worstCategory.total - worstCategory.selesai)} laporan pending`}
+                  />
+                );
+              })()}
+            </>
+          )}
           <InsightCard
             icon="chart"
-            title="Tren Positif"
-            description="Tingkat penyelesaian meningkat 15% dibanding bulan lalu"
+            title="Tingkat Penyelesaian"
+            description={`${analyticsData.completionRate ? analyticsData.completionRate.toFixed(0) : 0}% dari ${analyticsData.total || 0} laporan telah selesai`}
           />
           <InsightCard
             icon="people"
-            title="Partisipasi Warga"
-            description="Jumlah laporan baru meningkat 12% minggu ini"
+            title="Dukungan Warga"
+            description={`Total ${analyticsData.totalUpvotes || 0} dukungan dari warga`}
           />
         </div>
       </div>
