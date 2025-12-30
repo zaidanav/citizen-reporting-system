@@ -4,12 +4,24 @@ import { getDepartmentFromStorage } from '../../utils/jwtHelper';
 import { notificationService } from '../../components/Toast';
 import './Dashboard.css';
 
+// Helper functions
+const getStatusLabel = (status) => {
+  const labels = {
+    'PENDING': 'Menunggu',
+    'IN_PROGRESS': 'Diproses',
+    'RESOLVED': 'Selesai',
+    'REJECTED': 'Ditolak',
+  };
+  return labels[status] || status;
+};
+
 const Dashboard = () => {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [department, setDepartment] = useState('general');
   const [updatingId, setUpdatingId] = useState(null);
+  const [forwardModal, setForwardModal] = useState({ show: false, reportId: null, forwardTo: '', notes: '' });
 
   useEffect(() => {
     const userDept = getDepartmentFromStorage();
@@ -28,12 +40,13 @@ const Dashboard = () => {
   // Department category mapping for access control
   const getCategoryFilterForDepartment = (dept) => {
     const departmentCategories = {
-      'pekerjaan-umum': ['Jalan Rusak', 'Drainase', 'Fasilitas Umum'],
-      'kebersihan': ['Sampah'],
-      'penerangan': ['Penerangan'],
-      'lingkungan-hidup': ['Sampah', 'Drainase'],
-      'perhubungan': ['Jalan Rusak'],
-      'general': null, // Admin umum bisa melihat semua
+      'Kebersihan': ['Sampah'],
+      'Pekerjaan Umum': ['Jalan Rusak', 'Drainase', 'Fasilitas Umum'],
+      'Penerangan Jalan': ['Lampu Jalan'],
+      'Lingkungan Hidup': ['Polusi'],
+      'Perhubungan': ['Traffic & Transport'],
+      'General': null, // Admin umum bisa melihat semua
+      'general': null,
     };
     return departmentCategories[dept] || null;
   };
@@ -41,8 +54,20 @@ const Dashboard = () => {
   const loadReports = async () => {
     try {
       setLoading(true);
+      
+      // Convert filter status to uppercase format expected by backend
+      let statusFilter = undefined;
+      if (filter !== 'all') {
+        const statusMap = {
+          'pending': 'PENDING',
+          'in-progress': 'IN_PROGRESS',
+          'completed': 'RESOLVED',
+        };
+        statusFilter = statusMap[filter] || filter;
+      }
+      
       const filters = {
-        status: filter !== 'all' ? filter : undefined,
+        status: statusFilter,
         timeRange: '30d', // Default to 30 days
       };
       
@@ -57,6 +82,12 @@ const Dashboard = () => {
       
       // Client-side filter as additional layer (defense in depth)
       let filteredReports = Array.isArray(reportsData) ? reportsData : [];
+
+      // Normalize status to uppercase so badges/actions work even if backend data is lowercase
+      filteredReports = filteredReports.map((r) => ({
+        ...r,
+        status: (r.status || '').toUpperCase(),
+      }));
       if (allowedCategories) {
         filteredReports = filteredReports.filter(report => 
           allowedCategories.includes(report.category)
@@ -85,11 +116,19 @@ const Dashboard = () => {
     try {
       await reportService.updateReportStatus(reportId, newStatus, '');
       
-      // Update local state
+      // Update local state - convert the newStatus to uppercase format stored in DB
+      const statusMap = {
+        'pending': 'PENDING',
+        'in-progress': 'IN_PROGRESS',
+        'completed': 'RESOLVED',
+        'rejected': 'REJECTED',
+      };
+      const dbStatus = statusMap[newStatus] || newStatus.toUpperCase();
+      
       setReports((prev) =>
         prev.map((report) =>
           report.id === reportId
-            ? { ...report, status: newStatus }
+            ? { ...report, status: dbStatus }
             : report
         )
       );
@@ -97,7 +136,7 @@ const Dashboard = () => {
       notificationService.addNotification({
         type: 'success',
         title: 'Status Diperbarui',
-        message: `Status laporan berhasil diubah menjadi ${getStatusLabel(newStatus)}`,
+        message: `Status laporan berhasil diubah menjadi ${getStatusLabel(dbStatus)}`,
       });
     } catch (error) {
       console.error('Error updating status:', error);
@@ -111,16 +150,51 @@ const Dashboard = () => {
     }
   };
 
+  const handleForward = async () => {
+    if (!forwardModal.forwardTo) {
+      notificationService.addNotification({
+        type: 'error',
+        title: 'Tujuan Tidak Lengkap',
+        message: 'Silakan masukkan tujuan forwarding',
+      });
+      return;
+    }
+
+    try {
+      await reportService.forwardReport(forwardModal.reportId, forwardModal.forwardTo, forwardModal.notes);
+      
+      notificationService.addNotification({
+        type: 'success',
+        title: 'Laporan Diteruskan',
+        message: `Laporan berhasil diteruskan ke ${forwardModal.forwardTo}`,
+      });
+
+      setForwardModal({ show: false, reportId: null, forwardTo: '', notes: '' });
+      loadReports();
+    } catch (error) {
+      console.error('Error forwarding report:', error);
+      notificationService.addNotification({
+        type: 'error',
+        title: 'Gagal Meneruskan Laporan',
+        message: error.response?.data?.message || 'Terjadi kesalahan saat meneruskan laporan',
+      });
+    }
+  };
+
   const getStatusCounts = () => {
     return {
       all: reports.length,
-      pending: reports.filter((r) => r.status === 'pending').length,
-      'in-progress': reports.filter((r) => r.status === 'in-progress').length,
-      completed: reports.filter((r) => r.status === 'completed').length,
+      pending: reports.filter((r) => r.status === 'PENDING').length,
+      'in-progress': reports.filter((r) => r.status === 'IN_PROGRESS').length,
+      completed: reports.filter((r) => r.status === 'RESOLVED').length,
     };
   };
 
   const counts = getStatusCounts();
+
+  const openForwardModal = (reportId) => {
+    setForwardModal({ show: true, reportId, forwardTo: '', notes: '' });
+  };
 
   return (
     <div className="dashboard-page">
@@ -225,6 +299,7 @@ const Dashboard = () => {
                   key={report.id}
                   report={report}
                   onStatusUpdate={handleStatusUpdate}
+                  onForward={openForwardModal}
                   isUpdating={updatingId === report.id}
                 />
               ))}
@@ -232,6 +307,66 @@ const Dashboard = () => {
           </table>
         )}
       </div>
+
+      {/* Forward Modal */}
+      {forwardModal.show && (
+        <div className="modal-overlay" onClick={() => setForwardModal({ show: false, reportId: null, forwardTo: '', notes: '' })}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Teruskan Laporan ke Sistem Eksternal</h3>
+              <button 
+                className="modal-close" 
+                onClick={() => setForwardModal({ show: false, reportId: null, forwardTo: '', notes: '' })}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>Sistem Tujuan *</label>
+                <select 
+                  className="form-input"
+                  value={forwardModal.forwardTo}
+                  onChange={(e) => setForwardModal(prev => ({ ...prev, forwardTo: e.target.value }))}
+                >
+                  <option value="">Pilih sistem tujuan...</option>
+                  <option value="SIM-RS">SIM-RS (Sistem Informasi Rumah Sakit)</option>
+                  <option value="E-Kelurahan">E-Kelurahan</option>
+                  <option value="SIPD">SIPD (Sistem Informasi Pemerintah Daerah)</option>
+                  <option value="BPBD">BPBD (Badan Penanggulangan Bencana Daerah)</option>
+                  <option value="Satpol-PP">Satpol PP</option>
+                  <option value="External-API">API Eksternal Lainnya</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Catatan</label>
+                <textarea 
+                  className="form-textarea"
+                  placeholder="Tambahkan catatan untuk sistem tujuan..."
+                  value={forwardModal.notes}
+                  onChange={(e) => setForwardModal(prev => ({ ...prev, notes: e.target.value }))}
+                  rows={4}
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button 
+                className="btn btn-secondary"
+                onClick={() => setForwardModal({ show: false, reportId: null, forwardTo: '', notes: '' })}
+              >
+                Batal
+              </button>
+              <button 
+                className="btn btn-primary"
+                onClick={handleForward}
+                disabled={!forwardModal.forwardTo}
+              >
+                Teruskan Laporan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -246,17 +381,17 @@ const StatsCard = ({ title, value, icon, color }) => (
   </div>
 );
 
-const ReportRow = ({ report, onStatusUpdate, isUpdating }) => {
+const ReportRow = ({ report, onStatusUpdate, isUpdating, onForward }) => {
   const {
     id,
     title,
     category,
     location,
-    authorName,
-    isAnonymous,
+    reporter_name,
+    is_anonymous,
     status,
     upvotes,
-    createdAt,
+    created_at,
   } = report;
 
   const formatDate = (dateString) => {
@@ -270,22 +405,12 @@ const ReportRow = ({ report, onStatusUpdate, isUpdating }) => {
 
   const getStatusBadgeClass = (status) => {
     const classes = {
-      pending: 'status-badge--pending',
-      'in-progress': 'status-badge--in-progress',
-      completed: 'status-badge--completed',
-      rejected: 'status-badge--rejected',
+      'PENDING': 'status-badge--pending',
+      'IN_PROGRESS': 'status-badge--in-progress',
+      'RESOLVED': 'status-badge--completed',
+      'REJECTED': 'status-badge--rejected',
     };
     return classes[status] || '';
-  };
-
-  const getStatusLabel = (status) => {
-    const labels = {
-      pending: 'Menunggu',
-      'in-progress': 'Diproses',
-      completed: 'Selesai',
-      rejected: 'Ditolak',
-    };
-    return labels[status] || status;
   };
 
   return (
@@ -295,7 +420,7 @@ const ReportRow = ({ report, onStatusUpdate, isUpdating }) => {
       <td className="report-row__category">{category}</td>
       <td className="report-row__location">{location}</td>
       <td className="report-row__author">
-        {isAnonymous ? 'Anonim' : authorName}
+        {is_anonymous ? 'Anonim' : reporter_name}
       </td>
       <td>
         <span className={`status-badge ${getStatusBadgeClass(status)}`}>
@@ -303,9 +428,9 @@ const ReportRow = ({ report, onStatusUpdate, isUpdating }) => {
         </span>
       </td>
       <td className="report-row__upvotes">{upvotes} Dukungan</td>
-      <td className="report-row__date">{formatDate(createdAt)}</td>
+      <td className="report-row__date">{formatDate(created_at)}</td>
       <td className="report-row__actions">
-        {status === 'pending' && (
+        {status === 'PENDING' && (
           <button
             className="action-btn action-btn--process"
             onClick={() => onStatusUpdate(id, 'in-progress')}
@@ -314,7 +439,7 @@ const ReportRow = ({ report, onStatusUpdate, isUpdating }) => {
             Proses
           </button>
         )}
-        {status === 'in-progress' && (
+        {status === 'IN_PROGRESS' && (
           <button
             className="action-btn action-btn--complete"
             onClick={() => onStatusUpdate(id, 'completed')}
@@ -323,12 +448,40 @@ const ReportRow = ({ report, onStatusUpdate, isUpdating }) => {
             Selesai
           </button>
         )}
-        {status === 'completed' && (
+        {status === 'RESOLVED' && (
           <span className="action-btn action-btn--disabled">✓ Selesai</span>
         )}
+        <button
+          className="action-btn action-btn--forward"
+          onClick={() => onForward(id)}
+          title="Teruskan laporan ke sistem eksternal"
+        >
+          ↗ Teruskan
+        </button>
       </td>
     </tr>
   );
 };
 
-const getFilterLabel = (filter) => {\n  const labels = {\n    pending: 'Menunggu',\n    'in-progress': 'Diproses',\n    completed: 'Selesai',\n  };\n  return labels[filter] || filter;\n};\n\nconst getDepartmentLabel = (dept) => {\n  const labels = {\n    'pekerjaan-umum': 'Pekerjaan Umum',\n    'kebersihan': 'Kebersihan',\n    'penerangan': 'Penerangan Jalan',\n    'lingkungan-hidup': 'Lingkungan Hidup',\n    'perhubungan': 'Perhubungan',\n    'general': 'Umum',\n  };\n  return labels[dept] || dept;\n};\n\nexport default Dashboard;
+const getFilterLabel = (filter) => {
+  const labels = {
+    pending: 'Menunggu',
+    'in-progress': 'Diproses',
+    completed: 'Selesai',
+  };
+  return labels[filter] || filter;
+};
+
+const getDepartmentLabel = (dept) => {
+  const labels = {
+    'pekerjaan-umum': 'Pekerjaan Umum',
+    'kebersihan': 'Kebersihan',
+    'penerangan': 'Penerangan Jalan',
+    'lingkungan-hidup': 'Lingkungan Hidup',
+    'perhubungan': 'Perhubungan',
+    'general': 'Umum',
+  };
+  return labels[dept] || dept;
+};
+
+export default Dashboard;

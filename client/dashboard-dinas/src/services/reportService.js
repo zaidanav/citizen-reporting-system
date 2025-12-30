@@ -24,8 +24,18 @@ export const reportService = {
   // Update report status
   updateReportStatus: async (reportId, status, notes = '') => {
     try {
-      const response = await api.put(`/api/reports/${reportId}`, {
-        status,
+      // Convert lowercase status to uppercase with underscores (pending -> PENDING, in-progress -> IN_PROGRESS)
+      const statusMap = {
+        'pending': 'PENDING',
+        'in-progress': 'IN_PROGRESS',
+        'completed': 'RESOLVED',
+        'rejected': 'REJECTED',
+      };
+      
+      const mappedStatus = statusMap[status] || status.toUpperCase();
+      
+      const response = await api.put(`/admin/reports/${reportId}`, {
+        status: mappedStatus,
         notes,
       });
       console.log('[Service] Update status response:', response.data);
@@ -64,6 +74,51 @@ export const reportService = {
           avgProcessTime: 3.5,
         }
       };
+    }
+  },
+
+  // Forward report to external system
+  forwardReport: async (reportId, forwardTo, notes = '') => {
+    try {
+      const response = await api.post(`/admin/reports/forward/${reportId}`, {
+        forwardTo,
+        notes,
+      });
+      console.log('[Service] Forward report response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('[Service] Failed to forward report:', error);
+      throw error;
+    }
+  },
+
+  // Get escalated reports (reports needing attention)
+  getEscalatedReports: async (filter = 'all') => {
+    try {
+      const department = getDepartmentFromStorage();
+      const response = await api.get('/admin/reports/escalation', {
+        params: { filter },
+        headers: {
+          'X-Department': department,
+        },
+      });
+      console.log('[Service] Escalated reports response:', response.data);
+      return response.data.data || [];
+    } catch (error) {
+      console.error('[Service] Failed to fetch escalated reports:', error);
+      throw error;
+    }
+  },
+
+  // Escalate report to higher authority
+  escalateReport: async (reportId) => {
+    try {
+      const response = await api.post(`/admin/reports/escalate/${reportId}`);
+      console.log('[Service] Escalate report response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('[Service] Failed to escalate report:', error);
+      throw error;
     }
   },
 };

@@ -25,12 +25,13 @@ const CreateReport = ({ onSuccess }) => {
   const [errors, setErrors] = useState({});
 
   const categories = [
-    'Jalan Rusak',
     'Sampah',
-    'Penerangan',
+    'Jalan Rusak',
     'Drainase',
     'Fasilitas Umum',
-    'Lainnya',
+    'Lampu Jalan',
+    'Polusi',
+    'Traffic & Transport',
   ];
 
   const handleChange = (e) => {
