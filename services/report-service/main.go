@@ -515,7 +515,8 @@ func getReports(w http.ResponseWriter, r *http.Request) {
 		filter["status"] = status
 	}
 
-	cursor, err := db.Collection("reports").Find(ctx, filter)
+	findOpts := options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}, {Key: "_id", Value: -1}})
+	cursor, err := db.Collection("reports").Find(ctx, filter, findOpts)
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, "Failed to fetch reports", err.Error())
 		return
@@ -555,7 +556,8 @@ func myReportsHandler(w http.ResponseWriter, r *http.Request) {
 		filter["status"] = status
 	}
 
-	cursor, err := db.Collection("reports").Find(ctx, filter)
+	findOpts := options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}, {Key: "_id", Value: -1}})
+	cursor, err := db.Collection("reports").Find(ctx, filter, findOpts)
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, "Failed to fetch reports", err.Error())
 		return

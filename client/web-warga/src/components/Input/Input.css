@@ -13,7 +13,7 @@
 }
 
 .input-required {
-  color: var(--accent-danger);
+  color: var(--validation-danger, #FF4D4D);
   margin-left: 4px;
 }
 
@@ -44,12 +44,12 @@
 }
 
 .input-field--error {
-  border-color: var(--accent-danger);
+  border-color: var(--validation-danger, #FF4D4D);
 }
 
 .input-error {
   font-size: var(--font-size-xs);
-  color: var(--accent-danger);
+  color: var(--validation-danger, #FF4D4D);
 }
 
 /* Mobile Responsive */

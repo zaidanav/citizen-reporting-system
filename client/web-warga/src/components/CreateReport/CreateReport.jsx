@@ -113,10 +113,70 @@ const CreateReport = ({ onSuccess }) => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const focusFirstError = (nextErrors) => {
+    if (!nextErrors || typeof nextErrors !== 'object') return;
+
+    const fieldOrder = ['title', 'description', 'category', 'location', 'image'];
+    const firstKey = fieldOrder.find((key) => Boolean(nextErrors[key]));
+    if (!firstKey) return;
+
+    const idByField = {
+      title: 'title',
+      description: 'description',
+      category: 'category',
+      location: 'location',
+      image: 'image-upload',
+    };
+
+    const targetId = idByField[firstKey];
+    const el = targetId ? document.getElementById(targetId) : null;
+    if (!el) return;
+
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (typeof el.focus === 'function') el.focus();
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!validateForm()) {
+
+    // Run validation and redirect user to the first invalid field
+    const nextErrors = {};
+
+    // Title validation
+    if (!formData.title.trim()) {
+      nextErrors.title = 'Judul wajib diisi';
+    } else if (formData.title.trim().length < 5) {
+      nextErrors.title = 'Judul minimal 5 karakter';
+    } else if (formData.title.trim().length > 150) {
+      nextErrors.title = 'Judul maksimal 150 karakter';
+    }
+
+    // Description validation
+    if (!formData.description.trim()) {
+      nextErrors.description = 'Deskripsi wajib diisi';
+    } else if (formData.description.trim().length < 10) {
+      nextErrors.description = 'Deskripsi minimal 10 karakter';
+    } else if (formData.description.trim().length > 2000) {
+      nextErrors.description = 'Deskripsi maksimal 2000 karakter';
+    }
+
+    // Category validation
+    if (!formData.category) {
+      nextErrors.category = 'Kategori wajib dipilih';
+    }
+
+    // Location validation
+    if (!formData.location.trim()) {
+      nextErrors.location = 'Lokasi wajib diisi';
+    } else if (formData.location.trim().length < 3) {
+      nextErrors.location = 'Lokasi minimal 3 karakter';
+    } else if (formData.location.trim().length > 100) {
+      nextErrors.location = 'Lokasi maksimal 100 karakter';
+    }
+
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      focusFirstError(nextErrors);
       return;
     }
     

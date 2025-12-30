@@ -38,6 +38,11 @@
   background-color: var(--bg-secondary);
 }
 
+.create-report__textarea.input-field--error,
+.create-report__select.input-field--error {
+  border-color: var(--validation-danger, #FF4D4D);
+}
+
 /* Privacy Options - Flat Design */
 .create-report__privacy {
   display: flex;
