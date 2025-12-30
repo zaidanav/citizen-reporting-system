@@ -957,6 +957,14 @@ func internalUpdateStatusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Publish notification event so citizens/admin dashboards can receive real-time updates via SSE.
+	// Do not fail the internal update if notification publishing fails.
+	go func(reportID, status string) {
+		if err := publishNotificationEvent(reportID, "Status Laporan Diperbarui", status); err != nil {
+			log.Printf("[WARN] Failed to publish status_update notification (internal) for report %s: %v", reportID, err)
+		}
+	}(input.ID, input.Status)
+
 	response.Success(w, http.StatusOK, "Report status updated via internal API", nil)
 }
 

@@ -1,6 +1,30 @@
 import React from 'react';
 import './StatusBadge.css';
 
+const normalizeStatus = (status) => {
+  if (!status) return 'PENDING';
+
+  const normalized = String(status)
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_');
+
+  if (normalized === 'IN_PROGRESS' || normalized === 'INPROGRESS' || normalized === 'PROCESSING' || normalized === 'PROCESSED' || normalized === 'DIPROSES') {
+    return 'IN_PROGRESS';
+  }
+  if (normalized === 'RESOLVED' || normalized === 'COMPLETED' || normalized === 'SELESAI') {
+    return 'RESOLVED';
+  }
+  if (normalized === 'REJECTED' || normalized === 'DITOLAK') {
+    return 'REJECTED';
+  }
+  if (normalized === 'PENDING' || normalized === 'MENUNGGU') {
+    return 'PENDING';
+  }
+
+  return 'PENDING';
+};
+
 const StatusBadge = ({ status }) => {
   const statusConfig = {
     PENDING: {
@@ -21,7 +45,7 @@ const StatusBadge = ({ status }) => {
     }
   };
 
-  const config = statusConfig[status] || statusConfig.PENDING;
+  const config = statusConfig[normalizeStatus(status)] || statusConfig.PENDING;
 
   return (
     <span className={`status-badge ${config.className}`}>

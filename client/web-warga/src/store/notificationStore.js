@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 export const useNotificationStore = create((set, get) => ({
   notifications: [],
+  lastReportStatusUpdate: null,
   
   addNotification: (notification) => {
     const id = Date.now();
@@ -27,5 +28,16 @@ export const useNotificationStore = create((set, get) => ({
   
   clearAll: () => {
     set({ notifications: [] });
+  },
+
+  setLastReportStatusUpdate: (update) => {
+    if (!update || !update.reportId || !update.status) return;
+    set({
+      lastReportStatusUpdate: {
+        reportId: String(update.reportId),
+        status: String(update.status),
+        receivedAt: Date.now(),
+      },
+    });
   },
 }));

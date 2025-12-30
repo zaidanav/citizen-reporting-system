@@ -9,6 +9,31 @@ import { useNotificationStore } from '../store/notificationStore';
 export const useNotificationSubscription = () => {
   const user = useAuthStore((state) => state.user);
   const addNotification = useNotificationStore((state) => state.addNotification);
+  const setLastReportStatusUpdate = useNotificationStore((state) => state.setLastReportStatusUpdate);
+
+  const normalizeStatus = (status) => {
+    if (!status) return 'PENDING';
+
+    const normalized = String(status)
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '_');
+
+    if (normalized === 'IN_PROGRESS' || normalized === 'INPROGRESS' || normalized === 'PROCESSING' || normalized === 'PROCESSED' || normalized === 'DIPROSES') {
+      return 'IN_PROGRESS';
+    }
+    if (normalized === 'RESOLVED' || normalized === 'COMPLETED' || normalized === 'SELESAI') {
+      return 'RESOLVED';
+    }
+    if (normalized === 'REJECTED' || normalized === 'DITOLAK') {
+      return 'REJECTED';
+    }
+    if (normalized === 'PENDING' || normalized === 'MENUNGGU') {
+      return 'PENDING';
+    }
+
+    return 'PENDING';
+  };
 
   const connect = useCallback(() => {
     if (!user || !user.id) {
@@ -40,6 +65,14 @@ export const useNotificationSubscription = () => {
 
         console.log('[Notification] Received event:', data);
 
+        if (data.type === 'status_update') {
+          const reportId = data.report_id || data.reportId || data.id;
+          const status = normalizeStatus(data.status);
+          if (reportId && status) {
+            setLastReportStatusUpdate({ reportId, status });
+          }
+        }
+
         // Map notification type to toast type
         const toastType = data.type === 'status_update' ? 'info' : 'success';
 
@@ -65,7 +98,7 @@ export const useNotificationSubscription = () => {
     };
 
     return eventSource;
-  }, [user, addNotification]);
+  }, [user, addNotification, setLastReportStatusUpdate]);
 
   useEffect(() => {
     const eventSource = connect();

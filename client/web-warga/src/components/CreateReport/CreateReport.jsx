@@ -137,7 +137,7 @@ const CreateReport = ({ onSuccess }) => {
         description: formData.description,
         category: formData.category,
         location: formData.location,
-        imageUrl: imageUrl,
+        imageUrl: imageUrl || '',
         privacy: formData.privacy, // "public", "private", "anonymous"
       };
       

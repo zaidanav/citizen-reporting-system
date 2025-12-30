@@ -10,6 +10,7 @@ import './MyReports.css';
 const MyReports = () => {
   const navigate = useNavigate();
   const addNotification = useNotificationStore((state) => state.addNotification);
+  const lastReportStatusUpdate = useNotificationStore((state) => state.lastReportStatusUpdate);
   
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -18,6 +19,18 @@ const MyReports = () => {
   useEffect(() => {
     loadMyReports();
   }, []);
+
+  useEffect(() => {
+    if (!lastReportStatusUpdate?.reportId || !lastReportStatusUpdate?.status) return;
+
+    setReports((prev) =>
+      prev.map((report) =>
+        String(report.id) === String(lastReportStatusUpdate.reportId)
+          ? { ...report, status: lastReportStatusUpdate.status }
+          : report
+      )
+    );
+  }, [lastReportStatusUpdate]);
 
   const loadMyReports = async () => {
     try {

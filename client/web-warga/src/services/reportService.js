@@ -1,5 +1,42 @@
 import api from '../api/client';
 
+const normalizeStatus = (status) => {
+  if (!status) return 'PENDING';
+
+  const normalized = String(status)
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_');
+
+  if (normalized === 'IN_PROGRESS' || normalized === 'INPROGRESS' || normalized === 'PROCESSING' || normalized === 'PROCESSED' || normalized === 'DIPROSES') {
+    return 'IN_PROGRESS';
+  }
+  if (normalized === 'RESOLVED' || normalized === 'COMPLETED' || normalized === 'SELESAI') {
+    return 'RESOLVED';
+  }
+  if (normalized === 'REJECTED' || normalized === 'DITOLAK') {
+    return 'REJECTED';
+  }
+  if (normalized === 'PENDING' || normalized === 'MENUNGGU') {
+    return 'PENDING';
+  }
+
+  // Fallback to backend value if it already matches expected enum
+  if (normalized === 'PENDING' || normalized === 'IN_PROGRESS' || normalized === 'RESOLVED' || normalized === 'REJECTED') {
+    return normalized;
+  }
+
+  return 'PENDING';
+};
+
+const normalizeReport = (report) => {
+  if (!report || typeof report !== 'object') return report;
+  return {
+    ...report,
+    status: normalizeStatus(report.status),
+  };
+};
+
 export const reportService = {
   // Create new report
   createReport: async (reportData) => {
@@ -17,7 +54,8 @@ export const reportService = {
     });
     console.log('[Service] Public reports backend response:', response.data);
     // Backend returns: { status: "success", message: "...", data: [reports] }
-    return response.data.data;
+    const reports = response.data.data;
+    return Array.isArray(reports) ? reports.map(normalizeReport) : [];
   },
   
   // Get user's own reports
@@ -27,7 +65,8 @@ export const reportService = {
     const response = await api.get('/reports/mine', { params });
     console.log('[Service] My reports backend response:', response.data);
     // Backend returns: { status: "success", message: "...", data: [reports] }
-    return response.data.data;
+    const reports = response.data.data;
+    return Array.isArray(reports) ? reports.map(normalizeReport) : [];
   },
   
   // Get report by ID
