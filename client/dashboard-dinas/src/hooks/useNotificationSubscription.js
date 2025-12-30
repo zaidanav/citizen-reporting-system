@@ -1,31 +1,18 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback } from 'react';
 
 /**
  * Hook untuk subscribe ke real-time notifications dari server (Dashboard)
  * Menggunakan Server-Sent Events (SSE)
  */
 export const useNotificationSubscriptionDashboard = (onNotification) => {
-  const onNotificationRef = useRef(onNotification);
-
-  useEffect(() => {
-    onNotificationRef.current = onNotification;
-  }, [onNotification]);
-
   const connect = useCallback(() => {
     const NOTIFICATION_SERVICE_URL = import.meta.env.VITE_NOTIFICATION_URL || 'http://localhost:8084';
-    const adminUser = JSON.parse(localStorage.getItem('admin_user') || '{}');
-    const userID = adminUser.id;
-    const department = adminUser.department || 'general';
+    const userID = 'admin'; // Admin user ID, bisa disesuaikan
 
-    if (!userID) {
-      console.log('[DashboardNotification] No user, skipping subscription');
-      return;
-    }
-
-    console.log('[DashboardNotification] Connecting to:', `${NOTIFICATION_SERVICE_URL}/notifications/subscribe?user_id=${userID}&access_role=admin&department=${encodeURIComponent(department)}`);
+    console.log('[DashboardNotification] Connecting to:', `${NOTIFICATION_SERVICE_URL}/notifications/subscribe?user_id=${userID}`);
 
     const eventSource = new EventSource(
-      `${NOTIFICATION_SERVICE_URL}/notifications/subscribe?user_id=${userID}&access_role=admin&department=${encodeURIComponent(department)}`
+      `${NOTIFICATION_SERVICE_URL}/notifications/subscribe?user_id=${userID}`
     );
 
     eventSource.onopen = () => {
@@ -44,8 +31,8 @@ export const useNotificationSubscriptionDashboard = (onNotification) => {
 
         console.log('[DashboardNotification] Received event:', data);
 
-        if (onNotificationRef.current) {
-          onNotificationRef.current(data);
+        if (onNotification) {
+          onNotification(data);
         }
       } catch (error) {
         console.error('[DashboardNotification] Failed to parse event:', error);
@@ -64,7 +51,7 @@ export const useNotificationSubscriptionDashboard = (onNotification) => {
     };
 
     return eventSource;
-  }, []);
+  }, [onNotification]);
 
   useEffect(() => {
     const eventSource = connect();

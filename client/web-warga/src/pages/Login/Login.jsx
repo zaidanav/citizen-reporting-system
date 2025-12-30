@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { authService } from '../../services/authService';
+import { notificationService } from '../../services/notificationService';
 import { useNotificationStore } from '../../store/notificationStore';
 import Button from '../../components/Button';
 import Input from '../../components/Input';
@@ -86,7 +87,6 @@ const Login = () => {
         );
         
         const userData = {
-          id: loginResponse.id,
           name: loginResponse.name,
           role: loginResponse.role,
         };
@@ -106,12 +106,14 @@ const Login = () => {
         );
         
         const userData = {
-          id: response.id,
           name: response.name,
           role: response.role,
         };
         
         login(userData, response.token);
+        
+        // Connect WebSocket for real-time notifications
+        notificationService.connect(response.token);
         
         addNotification({
           type: 'success',

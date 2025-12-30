@@ -110,10 +110,6 @@ services:
     depends_on:
       - postgres
       - mongo
-      - auth-service
-      - report-service
-      - notification-service
-      - minio
     networks:
       - lapcw-network
 
@@ -156,16 +152,6 @@ services:
       - RABBITMQ_PORT=5672
       - RABBITMQ_USER=guest
       - RABBITMQ_PASS=guest
-
-      # Shared auth/crypto
-      - JWT_SECRET=supersecretkey
-
-      # Multimedia storage (MinIO)
-      - MINIO_ENDPOINT=lapcw-minio:9000
-      - MINIO_ACCESS_KEY=${MINIO_USER:-minioadmin}
-      - MINIO_SECRET_KEY=${MINIO_PASSWORD:-minioadmin}
-      - MINIO_BUCKET=${MINIO_BUCKET:-laporan-warga}
-      - MINIO_USE_SSL=false
       - PORT=8082
     depends_on:
       mongo:

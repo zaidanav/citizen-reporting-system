@@ -1,8 +1,6 @@
 package main
 
-
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -12,18 +10,15 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strings"
+	"path/filepath"
 	"time"
 
 	"citizen-reporting-system/pkg/database"
 	"citizen-reporting-system/pkg/middleware"
 	"citizen-reporting-system/pkg/queue"
-	"citizen-reporting-system/pkg/security"
 	"citizen-reporting-system/pkg/response"
 	"citizen-reporting-system/services/report-service/models"
 
-	"github.com/minio/minio-go/v7"
-	"github.com/minio/minio-go/v7/pkg/credentials"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -35,32 +30,7 @@ var (
 	db          *mongo.Database
 	amqpChannel *amqp.Channel
 	queueName   = "report_queue"
-	minioClient *minio.Client
-	minioBucket = "laporan-warga"
 )
-
-func ensureMinioBucketPublicRead(ctx context.Context, client *minio.Client, bucket string) {
-	if client == nil || bucket == "" {
-		return
-	}
-
-	policy := fmt.Sprintf(`{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":["*"]},"Action":["s3:GetObject"],"Resource":["arn:aws:s3:::%s/*"]}]}`,
-		bucket,
-	)
-
-	if err := client.SetBucketPolicy(ctx, bucket, policy); err != nil {
-		log.Printf("[WARN] Failed to set MinIO bucket policy public-read for '%s': %v", bucket, err)
-		return
-	}
-	log.Printf("[OK] MinIO bucket policy set: public-read (%s)", bucket)
-}
-
-func normalizeDepartment(department string) string {
-	d := strings.ToLower(strings.TrimSpace(department))
-	d = strings.ReplaceAll(d, "-", "_")
-	d = strings.ReplaceAll(d, " ", "_")
-	return d
-}
 
 // mapCategoryToDepartment maps report categories to departments
 func mapCategoryToDepartment(category string) []string {
@@ -78,16 +48,28 @@ func mapCategoryToDepartment(category string) []string {
 
 // mapDepartmentToCategories maps admin department to report categories they handle
 func mapDepartmentToCategories(department string) []string {
-	switch normalizeDepartment(department) {
+	switch department {
+	case "General":
+		return []string{"Sampah", "Jalan Rusak", "Drainase", "Fasilitas Umum", "Lampu Jalan", "Polusi", "Traffic & Transport"}
+	case "Kebersihan":
+		return []string{"Sampah"}
+	case "Pekerjaan Umum":
+		return []string{"Jalan Rusak", "Drainase", "Fasilitas Umum"}
+	case "Penerangan Jalan":
+		return []string{"Lampu Jalan"}
+	case "Lingkungan Hidup":
+		return []string{"Polusi"}
+	case "Perhubungan":
+		return []string{"Traffic & Transport"}
 	case "general":
-		return []string{"Sampah", "Jalan Rusak", "Drainase", "Fasilitas Umum", "Lampu Jalan", "Polusi", "Traffic & Transport", "Keamanan"}
+		return []string{"Sampah", "Jalan Rusak", "Drainase", "Fasilitas Umum", "Lampu Jalan", "Polusi", "Traffic & Transport"}
 	case "kebersihan":
 		return []string{"Sampah"}
-	case "pekerjaan_umum", "pekerjaanumum", "pu":
+	case "pekerjaan_umum":
 		return []string{"Jalan Rusak", "Drainase", "Fasilitas Umum"}
-	case "penerangan", "penerangan_jalan":
+	case "penerangan":
 		return []string{"Lampu Jalan"}
-	case "lingkungan_hidup", "lingkungan":
+	case "lingkungan_hidup":
 		return []string{"Polusi"}
 	case "perhubungan":
 		return []string{"Traffic & Transport"}
@@ -153,49 +135,6 @@ func main() {
 	amqpChannel = ch
 	log.Println("[OK] Connected to RabbitMQ")
 
-	// Ensure exchange exists for notification events
-	if err := amqpChannel.ExchangeDeclare("reports", "direct", true, false, false, false, nil); err != nil {
-		log.Fatalf("[ERROR] Failed to declare exchange 'reports': %v", err)
-	}
-
-	// MinIO client init (for multimedia uploads)
-	minioEndpoint := os.Getenv("MINIO_ENDPOINT")
-	if minioEndpoint == "" {
-		minioEndpoint = "localhost:9000"
-	}
-	minioAccessKey := os.Getenv("MINIO_ACCESS_KEY")
-	if minioAccessKey == "" {
-		minioAccessKey = "minioadmin"
-	}
-	minioSecretKey := os.Getenv("MINIO_SECRET_KEY")
-	if minioSecretKey == "" {
-		minioSecretKey = "minioadmin"
-	}
-	if b := os.Getenv("MINIO_BUCKET"); b != "" {
-		minioBucket = b
-	}
-	useSSL := strings.EqualFold(os.Getenv("MINIO_USE_SSL"), "true")
-
-	minioClient, err = minio.New(minioEndpoint, &minio.Options{Creds: credentials.NewStaticV4(minioAccessKey, minioSecretKey, ""), Secure: useSSL})
-	if err != nil {
-		log.Fatalf("[ERROR] Failed to init MinIO client: %v", err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	exists, err := minioClient.BucketExists(ctx, minioBucket)
-	if err != nil {
-		log.Fatalf("[ERROR] Failed to check MinIO bucket: %v", err)
-	}
-	if !exists {
-		if err := minioClient.MakeBucket(ctx, minioBucket, minio.MakeBucketOptions{}); err != nil {
-			log.Fatalf("[ERROR] Failed to create MinIO bucket '%s': %v", minioBucket, err)
-		}
-		log.Printf("[OK] MinIO bucket created: %s", minioBucket)
-	}
-	policyCtx, policyCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer policyCancel()
-	ensureMinioBucketPublicRead(policyCtx, minioClient, minioBucket)
-
 	// Create mux and register routes
 	mux := http.NewServeMux()
 
@@ -210,17 +149,14 @@ func main() {
 	mux.HandleFunc("/health", healthCheckHandler)
 	mux.HandleFunc("/metrics", metricsHandler)
 
-	// Admin endpoints (JWT required + role-based access)
-	adminChain := func(h http.Handler) http.Handler {
-		return middleware.LoggerMiddleware(middleware.AuthMiddleware(middleware.RequireRole("admin")(h)))
-	}
+	// Admin endpoints (no auth required for now, can be protected later)
 	// Register specific routes BEFORE generic ones to prevent premature matching
-	mux.Handle("/admin/reports/escalation", adminChain(http.HandlerFunc(adminEscalationHandler)))
-	mux.Handle("/admin/reports/escalate/", adminChain(http.HandlerFunc(adminEscalateReportHandler)))
-	mux.Handle("/admin/reports/forward/", adminChain(http.HandlerFunc(adminForwardReportHandler)))
-	mux.Handle("/admin/analytics", adminChain(http.HandlerFunc(adminAnalyticsHandler)))
-	mux.Handle("/admin/reports", adminChain(http.HandlerFunc(adminReportsHandler)))
-	mux.Handle("/admin/reports/", adminChain(http.HandlerFunc(adminReportDetailHandler)))
+	mux.Handle("/admin/reports/escalation", middleware.LoggerMiddleware(http.HandlerFunc(adminEscalationHandler)))
+	mux.Handle("/admin/reports/escalate/", middleware.LoggerMiddleware(http.HandlerFunc(adminEscalateReportHandler)))
+	mux.Handle("/admin/reports/forward/", middleware.LoggerMiddleware(http.HandlerFunc(adminForwardReportHandler)))
+	mux.Handle("/admin/analytics", middleware.LoggerMiddleware(http.HandlerFunc(adminAnalyticsHandler)))
+	mux.Handle("/admin/reports", middleware.LoggerMiddleware(http.HandlerFunc(adminReportsHandler)))
+	mux.Handle("/admin/reports/", middleware.LoggerMiddleware(http.HandlerFunc(adminReportDetailHandler)))
 
 	port := ":8082"
 	log.Printf("[INFO] Report Service running on port %s", port)
@@ -263,38 +199,6 @@ func maskAnonymousReporterSingle(report *models.Report) {
 	}
 }
 
-func containsString(list []string, v string) bool {
-	for _, s := range list {
-		if s == v {
-			return true
-		}
-	}
-	return false
-}
-
-func computeHasUpvoted(report *models.Report, userID string) {
-	if userID == "" {
-		return
-	}
-	report.HasUpvoted = containsString(report.UpvotedBy, userID)
-}
-
-func sanitizeReportForAdmin(report *models.Report) {
-	// Do not leak reporter_id to admin dashboards.
-	report.ReporterID = ""
-	// Always mask anonymous reporter name.
-	maskAnonymousReporterSingle(report)
-}
-
-func isCategoryAllowedForDepartment(department, category string) bool {
-	dept := normalizeDepartment(department)
-	if dept == "" || dept == "general" {
-		return true
-	}
-	allowed := mapDepartmentToCategories(dept)
-	return containsString(allowed, category)
-}
-
 func reportsHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -307,32 +211,7 @@ func reportsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func reportDetailHandler(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/api/reports/")
-	if path == "" {
-		response.Error(w, http.StatusBadRequest, "Missing report ID", "")
-		return
-	}
-
-	// Upvote endpoints: /api/reports/{id}/upvote
-	if strings.HasSuffix(path, "/upvote") {
-		reportID := strings.TrimSuffix(path, "/upvote")
-		reportID = strings.TrimSuffix(reportID, "/")
-		if reportID == "" {
-			response.Error(w, http.StatusBadRequest, "Missing report ID", "")
-			return
-		}
-		switch r.Method {
-		case http.MethodPost:
-			upvoteReport(w, r, reportID)
-		case http.MethodDelete:
-			removeUpvote(w, r, reportID)
-		default:
-			response.Error(w, http.StatusMethodNotAllowed, "Method not allowed", "")
-		}
-		return
-	}
-
-	id := strings.TrimSuffix(path, "/")
+	id := r.URL.Path[len("/api/reports/"):]
 	if id == "" {
 		response.Error(w, http.StatusBadRequest, "Missing report ID", "")
 		return
@@ -407,21 +286,11 @@ func createReport(w http.ResponseWriter, r *http.Request) {
 
 	// Prepare reporter identity - CRITICAL: Hash if anonymous
 	reporterID := claims.UserID
-	reporter := claims.Name
-	if strings.TrimSpace(reporter) == "" {
-		reporter = claims.Email
-	}
-	reporterIDEnc := ""
+	reporter := claims.Email
 	if isAnon {
 		reporterID = hashIdentity(claims.UserID)
-		enc, err := security.EncryptString(claims.UserID)
-		if err != nil {
-			response.Error(w, http.StatusInternalServerError, "Failed to protect anonymous identity", "")
-			return
-		}
-		reporterIDEnc = enc
 		reporter = "Pelapor Anonim"
-		log.Printf("[SECURITY] Anonymous report - identity protected")
+		log.Printf("[SECURITY] Anonymous report - Identity hashed for user: %s", claims.UserID[:8])
 	}
 
 	log.Printf("[INFO] Creating report - Privacy: %s, IsPublic: %v, IsAnonymous: %v", input.Privacy, isPublic, isAnon)
@@ -436,7 +305,6 @@ func createReport(w http.ResponseWriter, r *http.Request) {
 		IsAnonymous: isAnon,
 		IsPublic:    isPublic,
 		ReporterID:  reporterID,
-		ReporterIDEnc: reporterIDEnc,
 		Reporter:    reporter,
 		// Use uppercase status to stay consistent with admin filtering/UI badges
 		Status:    "PENDING",
@@ -474,23 +342,10 @@ func createReport(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[INFO] Event published to '%s'", queueName)
 	}
 
-	// Publish real-time event for dashboards (no reporter identity included)
-	go func(report models.Report) {
-		if err := publishNewReportEvent(report); err != nil {
-			log.Printf("[WARN] Failed to publish new_report notification: %v", err)
-		}
-	}(newReport)
-
 	response.Success(w, http.StatusCreated, "Report created successfully", newReport)
 }
 
 func getReports(w http.ResponseWriter, r *http.Request) {
-	claims, _ := r.Context().Value(middleware.UserContextKey).(*middleware.UserClaims)
-	userID := ""
-	if claims != nil {
-		userID = claims.UserID
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -515,11 +370,8 @@ func getReports(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Mask anonymous reporters + compute user upvote state
+	// Mask anonymous reporters
 	reports = maskAnonymousReporter(reports)
-	for i := range reports {
-		computeHasUpvoted(&reports[i], userID)
-	}
 	response.Success(w, http.StatusOK, "Reports fetched successfully", reports)
 }
 
@@ -554,8 +406,10 @@ func myReportsHandler(w http.ResponseWriter, r *http.Request) {
 		response.Error(w, http.StatusInternalServerError, "Failed to decode reports", err.Error())
 		return
 	}
-	for i := range reports {
-		computeHasUpvoted(&reports[i], claims.UserID)
+
+	// Debug logging
+	for _, r := range reports {
+		log.Printf("[DEBUG] MyReport - ID: %s, IsPublic: %v, IsAnonymous: %v", r.ID.Hex(), r.IsPublic, r.IsAnonymous)
 	}
 
 	// Note: For user's own reports, we show the full name even if anonymous
@@ -586,146 +440,62 @@ func getReportByID(w http.ResponseWriter, r *http.Request, id string) {
 
 	// Mask anonymous reporter name
 	maskAnonymousReporterSingle(&report)
-	claims, _ := r.Context().Value(middleware.UserContextKey).(*middleware.UserClaims)
-	if claims != nil {
-		computeHasUpvoted(&report, claims.UserID)
-	}
 	response.Success(w, http.StatusOK, "Report fetched successfully", report)
 }
 
-type notificationPayload struct {
-	ID        string    `json:"id"`
-	ReportID  string    `json:"report_id"`
-	Title     string    `json:"title"`
-	Message   string    `json:"message"`
-	Type      string    `json:"type"`
-	Status    string    `json:"status"`
-	Category  string    `json:"category,omitempty"`
-	UserID    string    `json:"user_id,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-// publishNotificationEvent publishes status update notification to RabbitMQ.
-// It targets ONLY the report owner (user_id) and never includes reporter identity fields.
+// publishNotificationEvent publishes notification to RabbitMQ
 func publishNotificationEvent(reportID, title, status string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	notification := map[string]interface{}{
+		"id":        reportID,
+		"reportID":  reportID,
+		"title":     title,
+		"message":   "Status laporan berubah menjadi: " + translateStatus(status),
+		"type":      "status_update",
+		"status":    status,
+		"createdAt": time.Now(),
+	}
 
-	objID, err := primitive.ObjectIDFromHex(reportID)
+	body, err := json.Marshal(notification)
 	if err != nil {
+		log.Printf("[ERROR] Failed to marshal notification: %v", err)
 		return err
 	}
 
-	var report models.Report
-	if err := db.Collection("reports").FindOne(ctx, bson.M{"_id": objID}).Decode(&report); err != nil {
-		return err
-	}
-
-	// Determine the real user id for notifications.
-	userID := report.ReporterID
-	if report.IsAnonymous {
-		if report.ReporterIDEnc == "" {
-			// Should not happen for new anonymous reports; avoid leaking by broadcasting.
-			userID = ""
-		} else {
-			realID, err := security.DecryptString(report.ReporterIDEnc)
-			if err != nil {
-				return err
-			}
-			userID = realID
-		}
-	}
-
-	payload := notificationPayload{
-		ID:        reportID,
-		ReportID:  reportID,
-		Title:     title,
-		Message:   "Status laporan berubah menjadi: " + translateStatus(status),
-		Type:      "status_update",
-		Status:    strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(status), "-", "_")),
-		Category:  report.Category,
-		UserID:    userID,
-		CreatedAt: time.Now(),
-	}
-
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-
-	return amqpChannel.Publish(
-		"reports",
-		"report.updated",
-		false,
-		false,
+	err = amqpChannel.Publish(
+		"reports",        // exchange
+		"report.updated", // routing key
+		false,            // mandatory
+		false,            // immediate
 		amqp.Publishing{
-			ContentType:  "application/json",
-			DeliveryMode: amqp.Persistent,
-			Body:         body,
-			Timestamp:    time.Now(),
+			ContentType: "application/json",
+			Body:        body,
 		},
 	)
-}
 
-// publishNewReportEvent publishes a real-time event for dashboards when a report is created.
-// This event contains no reporter identity.
-func publishNewReportEvent(report models.Report) error {
-	payload := notificationPayload{
-		ID:        report.ID.Hex(),
-		ReportID:  report.ID.Hex(),
-		Title:     "Laporan Baru",
-		Message:   "Laporan baru masuk: " + report.Title,
-		Type:      "new_report",
-		Status:    report.Status,
-		Category:  report.Category,
-		CreatedAt: report.CreatedAt,
-	}
-
-	body, err := json.Marshal(payload)
 	if err != nil {
+		log.Printf("[ERROR] Failed to publish notification: %v", err)
 		return err
 	}
 
-	return amqpChannel.Publish(
-		"reports",
-		"report.created",
-		false,
-		false,
-		amqp.Publishing{
-			ContentType:  "application/json",
-			DeliveryMode: amqp.Persistent,
-			Body:         body,
-			Timestamp:    time.Now(),
-		},
-	)
+	log.Printf("[OK] Notification published - ReportID: %s, Status: %s", reportID, status)
+	return nil
 }
 
 // translateStatus converts status to Indonesian
 func translateStatus(status string) string {
-	s := strings.ToUpper(strings.TrimSpace(status))
-	s = strings.ReplaceAll(s, "-", "_")
-	switch s {
-	case "PENDING":
-		return "Menunggu"
-	case "IN_PROGRESS":
-		return "Sedang Diproses"
-	case "RESOLVED":
-		return "Selesai"
-	case "REJECTED":
-		return "Ditolak"
-	default:
-		return s
+	statusMap := map[string]string{
+		"pending":     "Menunggu",
+		"in-progress": "Sedang Diproses",
+		"completed":   "Selesai",
+		"rejected":    "Ditolak",
 	}
+	if translated, ok := statusMap[status]; ok {
+		return translated
+	}
+	return status
 }
 
 func updateReportStatus(w http.ResponseWriter, r *http.Request, id string) {
-	// Only admins can change report status through this public endpoint.
-	claims, _ := r.Context().Value(middleware.UserContextKey).(*middleware.UserClaims)
-	if claims == nil || claims.Role != "admin" {
-		response.Error(w, http.StatusForbidden, "Forbidden", "Only admin can update report status")
-		return
-	}
-
 	var input struct {
 		Status string `json:"status"`
 	}
@@ -782,106 +552,6 @@ func updateReportStatus(w http.ResponseWriter, r *http.Request, id string) {
 	}()
 
 	response.Success(w, http.StatusOK, "Report status updated", nil)
-}
-
-func upvoteReport(w http.ResponseWriter, r *http.Request, id string) {
-	claims, _ := r.Context().Value(middleware.UserContextKey).(*middleware.UserClaims)
-	if claims == nil {
-		response.Error(w, http.StatusUnauthorized, "Unauthorized", "")
-		return
-	}
-
-	objID, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		response.Error(w, http.StatusBadRequest, "Invalid report ID", err.Error())
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	var report models.Report
-	if err := db.Collection("reports").FindOne(ctx, bson.M{"_id": objID}).Decode(&report); err != nil {
-		if err == mongo.ErrNoDocuments {
-			response.Error(w, http.StatusNotFound, "Report not found", "")
-			return
-		}
-		response.Error(w, http.StatusInternalServerError, "Failed to fetch report", err.Error())
-		return
-	}
-
-	if !report.IsPublic {
-		response.Error(w, http.StatusForbidden, "Forbidden", "Cannot upvote private reports")
-		return
-	}
-
-	if containsString(report.UpvotedBy, claims.UserID) {
-		response.Success(w, http.StatusOK, "Already upvoted", map[string]interface{}{"upvotes": report.Upvotes, "has_upvoted": true})
-		return
-	}
-
-	update := bson.M{
-		"$addToSet": bson.M{"upvoted_by": claims.UserID},
-		"$inc":      bson.M{"upvotes": 1},
-		"$set":      bson.M{"updated_at": time.Now()},
-	}
-
-	if _, err := db.Collection("reports").UpdateOne(ctx, bson.M{"_id": objID}, update); err != nil {
-		response.Error(w, http.StatusInternalServerError, "Failed to upvote report", err.Error())
-		return
-	}
-
-	response.Success(w, http.StatusOK, "Upvoted", map[string]interface{}{"has_upvoted": true})
-}
-
-func removeUpvote(w http.ResponseWriter, r *http.Request, id string) {
-	claims, _ := r.Context().Value(middleware.UserContextKey).(*middleware.UserClaims)
-	if claims == nil {
-		response.Error(w, http.StatusUnauthorized, "Unauthorized", "")
-		return
-	}
-
-	objID, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		response.Error(w, http.StatusBadRequest, "Invalid report ID", err.Error())
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	var report models.Report
-	if err := db.Collection("reports").FindOne(ctx, bson.M{"_id": objID}).Decode(&report); err != nil {
-		if err == mongo.ErrNoDocuments {
-			response.Error(w, http.StatusNotFound, "Report not found", "")
-			return
-		}
-		response.Error(w, http.StatusInternalServerError, "Failed to fetch report", err.Error())
-		return
-	}
-
-	if !containsString(report.UpvotedBy, claims.UserID) {
-		response.Success(w, http.StatusOK, "Not upvoted", map[string]interface{}{"has_upvoted": false})
-		return
-	}
-
-	dec := -1
-	if report.Upvotes <= 0 {
-		dec = 0
-	}
-
-	update := bson.M{
-		"$pull": bson.M{"upvoted_by": claims.UserID},
-		"$inc":  bson.M{"upvotes": dec},
-		"$set":  bson.M{"updated_at": time.Now()},
-	}
-
-	if _, err := db.Collection("reports").UpdateOne(ctx, bson.M{"_id": objID}, update); err != nil {
-		response.Error(w, http.StatusInternalServerError, "Failed to remove upvote", err.Error())
-		return
-	}
-
-	response.Success(w, http.StatusOK, "Upvote removed", map[string]interface{}{"has_upvoted": false})
 }
 
 func internalUpdateStatusHandler(w http.ResponseWriter, r *http.Request) {
@@ -957,9 +627,15 @@ func adminReportsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	department := ""
+	// Get department from JWT token (RBAC enforcement)
+	department := r.Header.Get("X-Department") // Fallback for backward compatibility
+
+	// Try to get from JWT claims first (more secure)
 	if claims, ok := r.Context().Value(middleware.UserContextKey).(*middleware.UserClaims); ok {
-		department = claims.Department
+		if claims.Department != "" {
+			department = claims.Department
+			log.Printf("[SECURITY] Using department from JWT: %s", department)
+		}
 	}
 
 	// Build filter
@@ -1070,10 +746,8 @@ func adminAnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 		"created_at": bson.M{"$gte": startDate},
 	}
 
-	department := ""
-	if claims, ok := r.Context().Value(middleware.UserContextKey).(*middleware.UserClaims); ok {
-		department = claims.Department
-	}
+	// Apply department-based category filter if department header provided
+	department := r.Header.Get("X-Department")
 	if department != "" {
 		allowedCategories := mapDepartmentToCategories(department)
 		if len(allowedCategories) > 0 {
@@ -1387,16 +1061,11 @@ func adminForwardReportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	department := ""
-	if claims, ok := r.Context().Value(middleware.UserContextKey).(*middleware.UserClaims); ok {
-		department = claims.Department
-	}
-
 	// Record forwarding in database
 	forwardRecord := bson.M{
 		"report_id":    objID,
 		"forward_to":   input.ForwardTo,
-		"forwarded_by": department,
+		"forwarded_by": r.Header.Get("X-Department"),
 		"notes":        input.Notes,
 		"forwarded_at": time.Now(),
 	}
@@ -1429,7 +1098,7 @@ func adminForwardReportHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Publish notification event
 	go func() {
-		if err := publishNotificationEvent(id, "Laporan Diteruskan", "IN_PROGRESS"); err != nil {
+		if err := publishNotificationEvent(id, "Laporan Diteruskan", input.ForwardTo); err != nil {
 			log.Printf("[WARN] Failed to publish notification: %v", err)
 		}
 	}()
@@ -1453,10 +1122,7 @@ func adminEscalationHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Get filter parameter
 	filter := r.URL.Query().Get("filter")
-	department := ""
-	if claims, ok := r.Context().Value(middleware.UserContextKey).(*middleware.UserClaims); ok {
-		department = claims.Department
-	}
+	department := r.Header.Get("X-Department")
 
 	// Build query
 	query := bson.M{
@@ -1517,11 +1183,6 @@ func adminEscalateReportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	department := ""
-	if claims, ok := r.Context().Value(middleware.UserContextKey).(*middleware.UserClaims); ok {
-		department = claims.Department
-	}
-
 	id := r.URL.Path[len("/admin/reports/escalate/"):]
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -1552,7 +1213,7 @@ func adminEscalateReportHandler(w http.ResponseWriter, r *http.Request) {
 		"$set": bson.M{
 			"is_escalated": true,
 			"escalated_at": time.Now(),
-			"escalated_by": department,
+			"escalated_by": r.Header.Get("X-Department"),
 			"updated_at":   time.Now(),
 		},
 	}
@@ -1567,7 +1228,7 @@ func adminEscalateReportHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Publish notification event
 	go func() {
-		if err := publishNotificationEvent(id, "Laporan Dieskalasi", "IN_PROGRESS"); err != nil {
+		if err := publishNotificationEvent(id, "Laporan Dieskalasi", "Report escalated to higher authority"); err != nil {
 			log.Printf("[WARN] Failed to publish notification: %v", err)
 		}
 	}()
@@ -1586,11 +1247,6 @@ func uploadImageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if minioClient == nil {
-		response.Error(w, http.StatusServiceUnavailable, "Storage service not configured", "")
-		return
-	}
-
 	// Parse multipart form (max 10MB)
 	err := r.ParseMultipartForm(10 << 20)
 	if err != nil {
@@ -1605,67 +1261,61 @@ func uploadImageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Read file into memory (max 5MB) so we can:
-	// - reliably validate size
-	// - detect content type
-	// - upload with known content length
-	data, err := io.ReadAll(io.LimitReader(file, (5<<20)+1))
-	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "Failed to read file", err.Error())
-		return
-	}
-	if len(data) == 0 {
-		response.Error(w, http.StatusBadRequest, "Empty file", "")
-		return
-	}
-	if len(data) > 5<<20 {
-		response.Error(w, http.StatusBadRequest, "File too large. Maximum 5MB allowed", "")
-		return
+	// Validate file type
+	allowedTypes := map[string]bool{
+		"image/jpeg": true,
+		"image/jpg":  true,
+		"image/png":  true,
+		"image/webp": true,
 	}
 
-	// Validate file type
-	contentType := http.DetectContentType(data)
-	allowedTypes := map[string]string{
-		"image/jpeg": ".jpg",
-		"image/png":  ".png",
-		"image/webp": ".webp",
-	}
-	ext, ok := allowedTypes[contentType]
-	if !ok {
+	contentType := handler.Header.Get("Content-Type")
+	if !allowedTypes[contentType] {
 		response.Error(w, http.StatusBadRequest, "Invalid file type. Only JPEG, PNG, and WebP allowed", "")
 		return
 	}
 
-	filename := fmt.Sprintf("report_%s%s", primitive.NewObjectID().Hex(), ext)
-	objectName := "uploads/" + filename
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	_, err = minioClient.PutObject(
-		ctx,
-		minioBucket,
-		objectName,
-		bytes.NewReader(data),
-		int64(len(data)),
-		minio.PutObjectOptions{ContentType: contentType},
-	)
-	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "Failed to upload to object storage", err.Error())
+	// Validate file size (max 5MB)
+	if handler.Size > 5<<20 {
+		response.Error(w, http.StatusBadRequest, "File too large. Maximum 5MB allowed", "")
 		return
 	}
 
-	// Accessible via nginx gateway route: /storage/<bucket>/<object>
-	fileURL := fmt.Sprintf("/storage/%s/%s", minioBucket, objectName)
+	// Generate unique filename
+	ext := filepath.Ext(handler.Filename)
+	timestamp := time.Now().UnixNano()
+	filename := fmt.Sprintf("report_%d%s", timestamp, ext)
 
-	log.Printf("[OK] Image uploaded - Object: %s/%s, Size: %d bytes", minioBucket, objectName, len(data))
+	// Create uploads directory if not exists
+	uploadDir := "./uploads"
+	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to create upload directory", err.Error())
+		return
+	}
+
+	// Save file
+	dst, err := os.Create(filepath.Join(uploadDir, filename))
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to create file", err.Error())
+		return
+	}
+	defer dst.Close()
+
+	_, err = io.Copy(dst, file)
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to save file", err.Error())
+		return
+	}
+
+	// Return file URL (accessible via storage endpoint)
+	fileURL := fmt.Sprintf("/storage/uploads/%s", filename)
+
+	log.Printf("[OK] Image uploaded - Filename: %s, Size: %d bytes", filename, handler.Size)
 
 	response.Success(w, http.StatusOK, "Image uploaded successfully", map[string]interface{}{
 		"url":      fileURL,
 		"filename": filename,
-		"size":     len(data),
-		"type":     contentType,
-		"original": handler.Filename,
+		"size":     handler.Size,
 	})
 }
 

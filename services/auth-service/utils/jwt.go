@@ -1,8 +1,6 @@
 package utils
 
 import (
-	"os"
-	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -10,13 +8,6 @@ import (
 )
 
 var jwtSecret = []byte("SUPER_SECRET_KEY_CHANGE_ME")
-
-func getJWTSecret() []byte {
-	if v := strings.TrimSpace(os.Getenv("JWT_SECRET")); v != "" {
-		return []byte(v)
-	}
-	return jwtSecret
-}
 
 func HashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -28,11 +19,10 @@ func CheckPasswordHash(password, hash string) bool {
 	return err == nil
 }
 
-func GenerateJWT(userID, email, name, role, department, accessRole string) (string, error) {
+func GenerateJWT(userID, email, role, department, accessRole string) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id":     userID,
 		"email":       email,
-		"name":        name,
 		"role":        role,
 		"department":  department,
 		"access_role": accessRole,
@@ -40,5 +30,5 @@ func GenerateJWT(userID, email, name, role, department, accessRole string) (stri
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(getJWTSecret())
+	return token.SignedString(jwtSecret)
 }

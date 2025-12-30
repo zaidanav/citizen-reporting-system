@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 
 	"citizen-reporting-system/pkg/response"
@@ -20,25 +19,16 @@ const (
 
 var jwtSecret = []byte("SUPER_SECRET_KEY_CHANGE_ME")
 
-func getJWTSecret() []byte {
-	if v := strings.TrimSpace(os.Getenv("JWT_SECRET")); v != "" {
-		return []byte(v)
-	}
-	return jwtSecret
-}
-
 type UserClaims struct {
 	UserID     string `json:"user_id"`
-	Name       string `json:"name"`
 	Email      string `json:"email"`
 	Role       string `json:"role"`
 	Department string `json:"department"`
-	AccessRole string `json:"access_role"`
 	jwt.RegisteredClaims
 }
 
-func AuthMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
 			response.Error(w, http.StatusUnauthorized, "Missing Authorization header", "")
@@ -55,7 +45,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
-			return getJWTSecret(), nil
+			return jwtSecret, nil
 		})
 
 		if err != nil {
@@ -65,9 +55,9 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 		if claims, ok := token.Claims.(*UserClaims); ok && token.Valid {
 			ctx := context.WithValue(r.Context(), UserContextKey, claims)
-			next.ServeHTTP(w, r.WithContext(ctx))
+			next(w, r.WithContext(ctx))
 		} else {
 			response.Error(w, http.StatusUnauthorized, "Invalid token claims", "")
 		}
-	})
+	}
 }

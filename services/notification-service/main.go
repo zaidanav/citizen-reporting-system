@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -20,51 +19,13 @@ type NotificationEvent struct {
 	Message   string    `json:"message"`
 	Type      string    `json:"type"` // status_update, new_report, comment
 	Status    string    `json:"status"`
-	Category  string    `json:"category,omitempty"`
 	UserID    string    `json:"user_id"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
 type Client struct {
-	UserID      string
-	AccessRole  string
-	Department  string
-	Send        chan NotificationEvent
-}
-
-func normalizeDepartment(department string) string {
-	d := strings.ToLower(strings.TrimSpace(department))
-	d = strings.ReplaceAll(d, "-", "_")
-	d = strings.ReplaceAll(d, " ", "_")
-	return d
-}
-
-func mapDepartmentToCategories(department string) []string {
-	switch normalizeDepartment(department) {
-	case "general":
-		return []string{"Sampah", "Jalan Rusak", "Drainase", "Fasilitas Umum", "Lampu Jalan", "Polusi", "Traffic & Transport", "Keamanan"}
-	case "kebersihan":
-		return []string{"Sampah"}
-	case "pekerjaan_umum", "pekerjaanumum", "pu":
-		return []string{"Jalan Rusak", "Drainase", "Fasilitas Umum"}
-	case "penerangan", "penerangan_jalan":
-		return []string{"Lampu Jalan"}
-	case "lingkungan_hidup", "lingkungan":
-		return []string{"Polusi"}
-	case "perhubungan":
-		return []string{"Traffic & Transport"}
-	default:
-		return []string{}
-	}
-}
-
-func containsString(list []string, value string) bool {
-	for _, v := range list {
-		if v == value {
-			return true
-		}
-	}
-	return false
+	UserID string
+	Send   chan NotificationEvent
 }
 
 var (
@@ -128,11 +89,6 @@ func main() {
 	}
 
 	err = ch.QueueBind(queue.Name, "report.updated", "reports", false, nil)
-	if err != nil {
-		log.Fatalf("[ERROR] Failed to bind queue: %v", err)
-	}
-
-	err = ch.QueueBind(queue.Name, "report.created", "reports", false, nil)
 	if err != nil {
 		log.Fatalf("[ERROR] Failed to bind queue: %v", err)
 	}
@@ -202,26 +158,7 @@ func handleClients() {
 		case event := <-broadcast:
 			mu.RLock()
 			for client := range clients {
-				// status_update: send only to the owner
-				if event.Type == "status_update" {
-					if event.UserID == "" || client.UserID != event.UserID {
-						continue
-					}
-				}
-
-				// new_report: send only to admin dashboards (optionally filtered by department categories)
-				if event.Type == "new_report" {
-					if client.AccessRole != "admin" {
-						continue
-					}
-					if client.Department != "" && event.Category != "" {
-						allowed := mapDepartmentToCategories(client.Department)
-						if len(allowed) > 0 && !containsString(allowed, event.Category) {
-							continue
-						}
-					}
-				}
-
+				// Send to all connected clients (in production, filter by UserID)
 				select {
 				case client.Send <- event:
 				default:
@@ -235,14 +172,12 @@ func handleClients() {
 
 // SSE Handler for client subscriptions
 func subscribeHandler(w http.ResponseWriter, r *http.Request) {
-	// Get userID from query
+	// Get userID from query or header
 	userID := r.URL.Query().Get("user_id")
 	if userID == "" {
 		http.Error(w, "user_id is required", http.StatusBadRequest)
 		return
 	}
-	accessRole := r.URL.Query().Get("access_role")
-	department := r.URL.Query().Get("department")
 
 	// Set SSE headers
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -254,10 +189,8 @@ func subscribeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Create client
 	client := &Client{
-		UserID:     userID,
-		AccessRole: accessRole,
-		Department: department,
-		Send:       make(chan NotificationEvent, 10),
+		UserID: userID,
+		Send:   make(chan NotificationEvent, 10),
 	}
 
 	register <- client

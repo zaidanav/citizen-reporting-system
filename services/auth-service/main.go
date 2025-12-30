@@ -81,7 +81,7 @@ func main() {
 	http.HandleFunc("/api/auth/register", middleware.LoggerMiddleware(http.HandlerFunc(registerHandler)).ServeHTTP)
 	http.HandleFunc("/api/auth/login", middleware.LoggerMiddleware(http.HandlerFunc(loginHandler)).ServeHTTP)
 
-	http.HandleFunc("/api/auth/me", middleware.LoggerMiddleware(middleware.AuthMiddleware(http.HandlerFunc(meHandler))).ServeHTTP)
+	http.HandleFunc("/api/auth/me", middleware.LoggerMiddleware(middleware.AuthMiddleware(meHandler)).ServeHTTP)
 
 	// Health check and metrics
 	http.HandleFunc("/health", healthCheckHandler)
@@ -109,7 +109,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		log.Printf("[WARN] Invalid request format")
+		log.Printf("[WARN] Invalid request format from IP: %s", r.RemoteAddr)
 		response.Error(w, http.StatusBadRequest, "Invalid request payload", "")
 		return
 	}
@@ -146,7 +146,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 
 	var existingUser models.User
 	if result := db.Where("email = ?", input.Email).First(&existingUser); result.Error == nil {
-		log.Printf("[WARN] Registration attempt with existing email")
+		log.Printf("[WARN] Registration attempt with existing email: %s", input.Email)
 		response.Error(w, http.StatusConflict, "Email already registered", "")
 		return
 	}
@@ -181,23 +181,11 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("[OK] User registered - ID: %s", newUser.ID)
+	log.Printf("[OK] User registered - Email: %s, ID: %s", newUser.Email, newUser.ID)
 
-	token, err := utils.GenerateJWT(newUser.ID, newUser.Email, newUser.Name, newUser.Role, newUser.Department, newUser.AccessRole)
-	if err != nil {
-		log.Printf("[ERROR] Failed to generate JWT for user id: %s", newUser.ID)
-		response.Error(w, http.StatusInternalServerError, "Failed to generate token", "")
-		return
-	}
-
-	response.Success(w, http.StatusCreated, "User registered successfully", map[string]interface{}{
-		"id":          newUser.ID,
-		"token":       token,
-		"name":        newUser.Name,
-		"role":        newUser.Role,
-		"access_role": newUser.AccessRole,
-		"department":  newUser.Department,
-	})
+	// Remove password from response
+	newUser.Password = ""
+	response.Success(w, http.StatusCreated, "User registered successfully", newUser)
 }
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -211,7 +199,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		log.Printf("[WARN] Invalid login request format")
+		log.Printf("[WARN] Invalid login request format from IP: %s", r.RemoteAddr)
 		response.Error(w, http.StatusBadRequest, "Invalid request payload", "")
 		return
 	}
@@ -223,28 +211,27 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	var user models.User
 	if err := db.Where("email = ?", input.Email).First(&user).Error; err != nil {
-		log.Printf("[WARN] Failed login attempt")
+		log.Printf("[WARN] Failed login attempt for email: %s from IP: %s", input.Email, r.RemoteAddr)
 		response.Error(w, http.StatusUnauthorized, "Invalid email or password", "")
 		return
 	}
 
 	if !utils.CheckPasswordHash(input.Password, user.Password) {
-		log.Printf("[WARN] Invalid password attempt")
+		log.Printf("[WARN] Invalid password attempt for email: %s from IP: %s", input.Email, r.RemoteAddr)
 		response.Error(w, http.StatusUnauthorized, "Invalid email or password", "")
 		return
 	}
 
-	token, err := utils.GenerateJWT(user.ID, user.Email, user.Name, user.Role, user.Department, user.AccessRole)
+	token, err := utils.GenerateJWT(user.ID, user.Email, user.Role, user.Department, user.AccessRole)
 	if err != nil {
-		log.Printf("[ERROR] Failed to generate JWT for user id: %s", user.ID)
+		log.Printf("[ERROR] Failed to generate JWT for user: %s", user.ID)
 		response.Error(w, http.StatusInternalServerError, "Failed to generate token", "")
 		return
 	}
 
-	log.Printf("[OK] User logged in - ID: %s, Role: %s, Department: %s", user.ID, user.Role, user.Department)
+	log.Printf("[OK] User logged in - Email: %s, Role: %s, Department: %s", user.Email, user.Role, user.Department)
 
 	response.Success(w, http.StatusOK, "Login successful", map[string]interface{}{
-		"id":          user.ID,
 		"token":       token,
 		"name":        user.Name,
 		"role":        user.Role,
