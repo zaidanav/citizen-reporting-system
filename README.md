@@ -5,6 +5,37 @@ This repository contains a Proof of Concept (PoC) implementation for a citizen r
 
 ---
 
+## 🚀 Quick Start
+
+### Prerequisites
+- Docker Desktop
+- Go 1.21+
+- Node.js 18+
+- PowerShell 5.1+
+
+### One-Command Start
+```powershell
+# Install frontend dependencies (first time only)
+cd client/web-warga && npm install
+cd client/dashboard-dinas && npm install
+
+# Start everything (Infrastructure + Backend + Frontend)
+.\runner.ps1 dev
+```
+
+**Access the system:**
+- 🌐 **Web Warga (Citizen):** http://localhost:3000
+- 👔 **Dashboard Dinas (Admin):** http://localhost:3001
+- 🐰 **RabbitMQ Console:** http://localhost:15672
+- 🗄️ **MinIO Console:** http://localhost:9001
+- 📊 **Grafana Dashboard:** http://localhost:3000
+
+**Stop all services:** Press `Ctrl+C`
+
+📖 **Full documentation:** [RUNNER_GUIDE.md](./RUNNER_GUIDE.md)
+
+---
+
 ## 🏗️ Structure & Development Zones
 
 This project uses a **Monorepo** approach. Code is separated based on functional responsibilities (Zones) to facilitate team collaboration without configuration conflicts.
