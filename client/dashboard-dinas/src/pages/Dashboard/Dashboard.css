@@ -178,6 +178,29 @@
   color: var(--text-secondary);
 }
 
+.report-row__image {
+  width: 92px;
+}
+
+.report-row__image-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.report-row__image-thumb {
+  width: 72px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-primary);
+  background-color: var(--bg-tertiary);
+}
+
+.report-row__image-empty {
+  color: var(--text-tertiary);
+}
+
 .report-row__author {
   color: var(--text-secondary);
 }

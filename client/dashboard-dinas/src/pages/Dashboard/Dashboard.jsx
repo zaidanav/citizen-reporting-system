@@ -290,6 +290,7 @@ const Dashboard = () => {
                 <th>Judul</th>
                 <th>Kategori</th>
                 <th>Lokasi</th>
+                <th>Foto</th>
                 <th>Pelapor</th>
                 <th>Status</th>
                 <th>Dukungan</th>
@@ -430,12 +431,24 @@ const ReportRow = ({ report, onStatusUpdate, isUpdating, onForward }) => {
     title,
     category,
     location,
+    image_url,
     reporter_name,
     is_anonymous,
     status,
     upvotes,
     created_at,
   } = report;
+
+  const getImageSrc = (url) => {
+    if (!url) return '';
+    const value = String(url).trim();
+    if (!value) return '';
+    if (value.startsWith('http://') || value.startsWith('https://')) return value;
+    if (value.startsWith('/')) return value;
+    return `/${value}`;
+  };
+
+  const imageSrc = getImageSrc(image_url);
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -462,6 +475,15 @@ const ReportRow = ({ report, onStatusUpdate, isUpdating, onForward }) => {
       <td className="report-row__title">{title}</td>
       <td className="report-row__category">{category}</td>
       <td className="report-row__location">{location}</td>
+      <td className="report-row__image">
+        {imageSrc ? (
+          <a href={imageSrc} target="_blank" rel="noreferrer" className="report-row__image-link">
+            <img src={imageSrc} alt={title} loading="lazy" className="report-row__image-thumb" />
+          </a>
+        ) : (
+          <span className="report-row__image-empty">-</span>
+        )}
+      </td>
       <td className="report-row__author">
         {is_anonymous ? 'Anonim' : reporter_name}
       </td>
