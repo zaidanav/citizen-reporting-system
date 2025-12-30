@@ -19,6 +19,10 @@
 }
 
 .login-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
   font-size: var(--font-size-2xl);
   font-weight: 700;
   color: var(--text-primary);

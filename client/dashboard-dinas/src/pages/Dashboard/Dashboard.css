@@ -207,29 +207,30 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   white-space: nowrap;
+  border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 .status-badge--pending {
   background-color: var(--status-pending);
-  color: #0D1F2D;
+  color: var(--text-primary);
   font-weight: 700;
 }
 
 .status-badge--in-progress {
   background-color: var(--status-in-progress);
-  color: #FFFFFF;
+  color: var(--text-primary);
   font-weight: 700;
 }
 
 .status-badge--completed {
   background-color: var(--status-completed);
-  color: #0D1F2D;
+  color: var(--text-primary);
   font-weight: 700;
 }
 
 .status-badge--rejected {
-  background-color: var(--status-rejected);
-  color: #FFFFFF;
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
   font-weight: 700;
 }
 

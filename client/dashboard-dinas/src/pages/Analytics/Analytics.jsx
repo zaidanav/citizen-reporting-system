@@ -194,8 +194,9 @@ const Analytics = () => {
               <p>Tidak ada data kategori untuk periode ini</p>
             </div>
           ) : (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-              <ResponsiveContainer width="90%" height={300}>
+            <div className="chart-body chart-body--center">
+              <div style={{ width: '100%', maxWidth: '1100px' }}>
+              <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={categoryData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#234C6A" />
                   <XAxis dataKey="name" stroke="#FFFFFF" />
@@ -215,6 +216,7 @@ const Analytics = () => {
                 <Bar dataKey="selesai" fill="#456882" name="Selesai" />
               </BarChart>
               </ResponsiveContainer>
+              </div>
             </div>
           )}
         </div>
@@ -270,6 +272,24 @@ const Analytics = () => {
 };
 
 const KPICard = ({ title, value, icon, trend, trendUp }) => {
+  const getTrendIcon = (isUp) => {
+    if (isUp) {
+      return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M7 17L17 7" />
+          <path d="M7 7h10v10" />
+        </svg>
+      );
+    }
+
+    return (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M7 7l10 10" />
+        <path d="M17 7v10H7" />
+      </svg>
+    );
+  };
+
   const getIcon = (iconName) => {
     switch(iconName) {
       case 'list':
@@ -311,7 +331,7 @@ const KPICard = ({ title, value, icon, trend, trendUp }) => {
         <div className="kpi-card__value">{value}</div>
         <div className="kpi-card__title">{title}</div>
         <div className={`kpi-card__trend ${trendUp ? 'kpi-card__trend--up' : 'kpi-card__trend--down'}`}>
-          {trendUp ? '↗' : '↘'} {trend}
+          {getTrendIcon(trendUp)} {trend}
         </div>
       </div>
     </div>
@@ -319,19 +339,53 @@ const KPICard = ({ title, value, icon, trend, trendUp }) => {
 };
 
 const InsightCard = ({ icon, title, description }) => {
-  const getIconLabel = (iconName) => {
-    const icons = {
-      'target': '◎',
-      'alert': '!',
-      'chart': '∿',
-      'people': '👥'
-    };
-    return icons[iconName] || iconName;
+  const getIcon = (iconName) => {
+    switch (iconName) {
+      case 'target':
+        return (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="8" />
+            <circle cx="12" cy="12" r="3" />
+            <line x1="12" y1="2" x2="12" y2="4" />
+            <line x1="12" y1="20" x2="12" y2="22" />
+            <line x1="2" y1="12" x2="4" y2="12" />
+            <line x1="20" y1="12" x2="22" y2="12" />
+          </svg>
+        );
+      case 'alert':
+        return (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12" y2="17" />
+          </svg>
+        );
+      case 'chart':
+        return (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="4" y1="20" x2="20" y2="20" />
+            <line x1="6" y1="20" x2="6" y2="12" />
+            <line x1="12" y1="20" x2="12" y2="8" />
+            <line x1="18" y1="20" x2="18" y2="4" />
+          </svg>
+        );
+      case 'people':
+        return (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+        );
+      default:
+        return null;
+    }
   };
 
   return (
     <div className="insight-card">
-      <div className="insight-card__icon">{getIconLabel(icon)}</div>
+      <div className="insight-card__icon">{getIcon(icon)}</div>
       <div className="insight-card__content">
         <h4 className="insight-card__title">{title}</h4>
         <p className="insight-card__description">{description}</p>

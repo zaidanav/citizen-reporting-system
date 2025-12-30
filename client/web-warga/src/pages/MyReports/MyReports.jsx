@@ -64,12 +64,6 @@ const MyReports = () => {
       </div>
       
       <div className="container">
-        <div className="my-reports-actions">
-          <Button variant="primary" onClick={() => navigate('/create')}>
-            Buat Laporan Baru
-          </Button>
-        </div>
-        
         {/* Filter Tabs */}
         <div className="my-reports-filters">
           <button
@@ -182,13 +176,36 @@ const MyReportCard = ({ report }) => {
     const privacy = getPrivacyType();
     switch (privacy) {
       case 'public':
-        return 'Public';
+        return (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M2 12h20" />
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+          </svg>
+        );
       case 'private':
-        return 'Private';
+        return (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+        );
       case 'anonymous':
-        return 'Anonymous';
+        return (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+            <path d="M2 2l20 20" />
+          </svg>
+        );
       default:
-        return 'Public';
+        return (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M2 12h20" />
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+          </svg>
+        );
     }
   };
 
@@ -211,7 +228,8 @@ const MyReportCard = ({ report }) => {
       <div className="my-report-card__header">
         <StatusBadge status={status} />
         <span className="my-report-card__privacy">
-          {getPrivacyIcon()} {getPrivacyLabel()}
+          {getPrivacyIcon()}
+          {getPrivacyLabel()}
         </span>
       </div>
       

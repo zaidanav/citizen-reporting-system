@@ -255,7 +255,13 @@ const CreateReport = ({ onSuccess }) => {
                 onChange={handleChange}
               />
               <div className="privacy-option__content">
-                <div className="privacy-option__icon">PUBLIC</div>
+                <div className="privacy-option__icon" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M2 12h20" />
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                  </svg>
+                </div>
                 <div>
                   <div className="privacy-option__title">Publik</div>
                   <div className="privacy-option__desc">Ditampilkan di feed publik dengan identitas Anda</div>
@@ -272,7 +278,12 @@ const CreateReport = ({ onSuccess }) => {
                 onChange={handleChange}
               />
               <div className="privacy-option__content">
-                <div className="privacy-option__icon">PRIVATE</div>
+                <div className="privacy-option__icon" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                </div>
                 <div>
                   <div className="privacy-option__title">Privat</div>
                   <div className="privacy-option__desc">Hanya Anda dan dinas terkait yang bisa melihat</div>
@@ -289,7 +300,13 @@ const CreateReport = ({ onSuccess }) => {
                 onChange={handleChange}
               />
               <div className="privacy-option__content">
-                <div className="privacy-option__icon">ANONYMOUS</div>
+                <div className="privacy-option__icon" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                    <path d="M2 2l20 20" />
+                  </svg>
+                </div>
                 <div>
                   <div className="privacy-option__title">Anonim</div>
                   <div className="privacy-option__desc">Identitas Anda disembunyikan dari publik</div>

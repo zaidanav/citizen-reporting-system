@@ -86,12 +86,19 @@
   justify-content: center;
   width: 48px;
   height: 48px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   background-color: var(--bg-secondary);
   border-radius: var(--radius-md);
   flex-shrink: 0;
+}
+
+.privacy-option__icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.privacy-option--active .privacy-option__icon {
+  background-color: var(--accent-primary);
 }
 
 .privacy-option__title {
@@ -173,7 +180,7 @@
 }
 
 .create-report__remove-image:hover {
-  background-color: #D32F2F;
+  background-color: var(--border-secondary);
 }
 
 .create-report__actions {

@@ -131,12 +131,6 @@ const Feed = () => {
       </div>
       
       <div className="container">
-        <div className="feed-actions">
-          <Button variant="primary" onClick={handleCreateReport}>
-            Buat Laporan Baru
-          </Button>
-        </div>
-        
         {loading && page === 1 ? (
           <div className="feed-loading">
             <div className="spinner"></div>

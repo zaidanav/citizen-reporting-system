@@ -1,35 +1,34 @@
 /* Dark Mode Design System - Flat Design, No Gradients */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
 :root {
-  /* Color Palette - Dark Blue Theme */
-  --bg-primary: #1B3C53;
-  --bg-secondary: #234C6A;
-  --bg-tertiary: #2D5A7B;
-  --bg-card: #234C6A;
-  --bg-input: #2D5A7B;
+  /* Color Palette - Match Admin Dashboard */
+  --bg-primary: #0D1F2D;
+  --bg-secondary: #1B3C53;
+  --bg-tertiary: #234C6A;
+  --bg-card: #1B3C53;
+  --bg-input: #234C6A;
+  --bg-hover: #234C6A;
   
   /* Text Colors */
   --text-primary: #FFFFFF;
   --text-secondary: #B8C9D9;
-  --text-tertiary: #8BA3B8;
+  --text-tertiary: #7A9AB5;
   
-  /* Accent Colors - Only Blues + Black/White */
+  /* Accent Colors - Match Admin */
   --accent-primary: #456882;
   --accent-primary-hover: #5A7A96;
   --accent-secondary: #456882;
-  --accent-danger: #1B3C53;
-  --accent-warning: #234C6A;
+  --accent-danger: #234C6A;
+  --accent-warning: #456882;
   --accent-info: #456882;
   
-  /* Status Colors - Only Blues */
-  --status-pending: #234C6A;
-  --status-in-progress: #456882;
+  /* Status Colors - Match Admin */
+  --status-pending: #456882;
+  --status-in-progress: #234C6A;
   --status-completed: #456882;
   --status-rejected: #1B3C53;
   
   /* Border Colors */
-  --border-primary: #2D5A7B;
+  --border-primary: #234C6A;
   --border-secondary: #456882;
   
   /* Shadow */
@@ -50,7 +49,7 @@
   --radius-lg: 12px;
   
   /* Typography */
-  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
   --font-size-xs: 12px;
   --font-size-sm: 14px;
   --font-size-base: 16px;
@@ -139,9 +138,9 @@ input:focus, textarea:focus, select:focus {
 /* Utility Classes */
 .container {
   width: 100%;
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 0 var(--spacing-md);
+  padding: 0 var(--spacing-lg);
 }
 
 .card {
@@ -217,6 +216,18 @@ input:focus, textarea:focus, select:focus {
   height: 40px;
   animation: spin 0.8s linear infinite;
   margin: 0 auto;
+}
+
+@media (max-width: 1024px) {
+  .container {
+    padding: 0 var(--spacing-md);
+  }
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 0 var(--spacing-sm);
+  }
 }
 
 @keyframes spin {

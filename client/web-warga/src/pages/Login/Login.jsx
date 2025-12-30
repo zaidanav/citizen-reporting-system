@@ -137,7 +137,7 @@ const Login = () => {
     <div className="login-page">
       <div className="login-container">
         <div className="login-header">
-          <h1 className="login-logo">🏛️ Lapor Warga</h1>
+          <h1 className="login-logo">Lapor Warga</h1>
           <p className="login-tagline">Sistem Pelaporan Warga Kota</p>
         </div>
         
