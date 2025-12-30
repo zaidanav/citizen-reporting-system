@@ -87,7 +87,7 @@ services:
     container_name: lapcw-grafana
     restart: always
     ports:
-      - "3000:3000"
+      - "3002:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
@@ -170,6 +170,7 @@ services:
     ports:
       - "8084:8084"
     environment:
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PORT=5672
       - RABBITMQ_USER=guest

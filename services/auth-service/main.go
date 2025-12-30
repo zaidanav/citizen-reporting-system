@@ -99,17 +99,24 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	newUser := models.User{
-			Email:      input.Email,
-			Password:   hashedPassword,
-			Name:       input.Name,
-			NIK:        nikPtr,
-			Phone:      input.Phone,
-			Role:       "citizen",
-			Department: "general",
+		Email:      input.Email,
+		Password:   hashedPassword,
+		Name:       input.Name,
+		NIK:        nikPtr,
+		Phone:      input.Phone,
+		Role:       "citizen",
+		AccessRole: "operational",
+		Department: "general",
+	}
+
+	// Save user to database
+	if err := db.Create(&newUser).Error; err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to save user", err.Error())
+		return
+	}
 
 	response.Success(w, http.StatusCreated, "User registered successfully", newUser)
 }
-
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		response.Error(w, http.StatusMethodNotAllowed, "Method not allowed", "")
@@ -137,17 +144,18 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := utils.GenerateJWT(user.ID, user.Email, user.Role, user.Department)
+	token, err := utils.GenerateJWT(user.ID, user.Email, user.Role, user.Department, user.AccessRole)
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, "Failed to generate token", err.Error())
 		return
 	}
 
 	response.Success(w, http.StatusOK, "Login successful", map[string]interface{}{
-		"token":      token,
-		"name":       user.Name,
-		"role":       user.Role,
-		"department": user.Department,
+		"token":       token,
+		"name":        user.Name,
+		"role":        user.Role,
+		"access_role": user.AccessRole,
+		"department":  user.Department,
 	})
 }
 
