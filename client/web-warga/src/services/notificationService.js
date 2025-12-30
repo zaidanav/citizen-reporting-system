@@ -7,7 +7,7 @@ export const notificationService = {
   // Initialize WebSocket connection
   connect: (token) => {
     // Disable WebSocket sementara karena notification service belum berjalan
-    console.log('WebSocket disabled - notification service not running');
+    console.log('[Notification] WebSocket disabled - notification service not running');
     return null;
     
     /* Uncomment when notification service ready
@@ -15,12 +15,12 @@ export const notificationService = {
       return socket;
     }
     
-    socket = io('http://localhost:8080', {
+    socket = io('http://localhost:8084', {
       auth: {
         token: token,
       },
       transports: ['websocket'],
-      reconnection: false, // Disable reconnection
+      reconnection: false,
     });
     
     socket.on('connect', () => {
@@ -30,7 +30,6 @@ export const notificationService = {
     socket.on('disconnect', () => {
       console.log('WebSocket disconnected');
     });
-    */
     
     // Listen for report status updates
     socket.on('report:status-update', (data) => {
@@ -60,16 +59,21 @@ export const notificationService = {
     });
     
     return socket;
+    */
   },
   
   // Disconnect WebSocket
   disconnect: () => {
+    // Disabled
+    console.log('[Notification] Disconnect called - no-op');
+    /* Uncomment when notification service ready
     if (socket?.connected) {
       socket.disconnect();
       socket = null;
     }
+    */
   },
   
   // Get socket instance
-  getSocket: () => socket,
+  getSocket: () => null, // Always return null when disabled
 };

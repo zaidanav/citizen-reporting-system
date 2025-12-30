@@ -200,9 +200,23 @@ func main() {
 	mux := http.NewServeMux()
 
 	// Setup HTTP routes
-	mux.Handle("/api/reports", middleware.LoggerMiddleware(middleware.AuthMiddleware(http.HandlerFunc(reportsHandler))))
-	mux.Handle("/api/reports/upload", middleware.LoggerMiddleware(middleware.AuthMiddleware(http.HandlerFunc(uploadImageHandler))))
+	// Register specific routes BEFORE generic ones to prevent premature matching
 	mux.Handle("/api/reports/mine", middleware.LoggerMiddleware(middleware.AuthMiddleware(http.HandlerFunc(myReportsHandler))))
+	mux.Handle("/api/reports/upload", middleware.LoggerMiddleware(middleware.AuthMiddleware(http.HandlerFunc(uploadImageHandler))))
+	
+	// GET /api/reports is public (no auth required, but can use token for upvote status)
+	mux.Handle("/api/reports", middleware.LoggerMiddleware(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodGet {
+				middleware.OptionalAuthMiddleware(http.HandlerFunc(reportsHandler)).ServeHTTP(w, r)
+			} else {
+				// POST requires auth
+				middleware.AuthMiddleware(http.HandlerFunc(reportsHandler)).ServeHTTP(w, r)
+			}
+		}),
+	))
+	
+	// Generic route for report detail (with ID)
 	mux.Handle("/api/reports/", middleware.LoggerMiddleware(middleware.AuthMiddleware(http.HandlerFunc(reportDetailHandler))))
 	mux.Handle("/internal/updates", middleware.LoggerMiddleware(http.HandlerFunc(internalUpdateStatusHandler)))
 

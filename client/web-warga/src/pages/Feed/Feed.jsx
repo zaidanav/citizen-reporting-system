@@ -38,12 +38,14 @@ const Feed = () => {
       // For pagination: assume has more if we got full page
       setHasMore(reports.length === 20);
     } catch (error) {
-      console.error('Error loading reports:', error);
+      console.error('[Feed] Error loading reports:', error);
+      
       addNotification({
         type: 'error',
         title: 'Gagal Memuat Laporan',
         message: 'Terjadi kesalahan saat memuat feed',
       });
+      setReports([]); // Clear reports on error
     } finally {
       setLoading(false);
     }

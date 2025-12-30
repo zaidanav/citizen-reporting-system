@@ -36,16 +36,22 @@ function App() {
           isAuthenticated ? <Navigate to="/feed" replace /> : <Login />
         } />
         
-        <Route path="/" element={
-          isAuthenticated ? <Layout /> : <Navigate to="/login" replace />
-        }>
-          <Route index element={<Navigate to="/feed" replace />} />
-          <Route path="feed" element={<Feed />} />
-          <Route path="my-reports" element={<MyReports />} />
-          <Route path="create" element={<CreateReportPage />} />
+        {/* All app routes use Layout */}
+        <Route element={<Layout />}>
+          {/* Public route - Feed */}
+          <Route path="/feed" element={<Feed />} />
+          
+          {/* Protected routes */}
+          <Route path="/my-reports" element={
+            isAuthenticated ? <MyReports /> : <Navigate to="/login" replace />
+          } />
+          <Route path="/create" element={
+            isAuthenticated ? <CreateReportPage /> : <Navigate to="/login" replace />
+          } />
         </Route>
         
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="/" element={<Navigate to="/feed" replace />} />
+        <Route path="*" element={<Navigate to="/feed" replace />} />
       </Routes>
     </BrowserRouter>
   );
