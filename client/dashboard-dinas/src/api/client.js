@@ -40,19 +40,6 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
     
-    // Add department header from localStorage
-    const adminUser = localStorage.getItem('admin_user');
-    if (adminUser) {
-      try {
-        const user = JSON.parse(adminUser);
-        if (user.department) {
-          config.headers['X-Department'] = user.department;
-        }
-      } catch (e) {
-        console.warn('Failed to parse admin_user from localStorage');
-      }
-    }
-    
     config.headers['X-Trace-Id'] = generateTraceId();
     config.headers['X-Client-Type'] = 'web-admin';
     
