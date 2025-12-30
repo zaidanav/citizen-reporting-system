@@ -12,4 +12,23 @@ scrape_configs:
       - targets: ['lapcw-rabbitmq:15692']
   
   # Monitoring Backend Services
-  # TODO: implement when the backend services are ready
+  - job_name: 'auth-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['auth-service:8081']
+
+  - job_name: 'report-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['report-service:8082']
+
+  - job_name: 'notification-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['notification-service:8084']
+
+  # Monitoring Nginx Gateway
+  - job_name: 'nginx-gateway'
+    metrics_path: '/gateway/metrics'
+    static_configs:
+      - targets: ['gateway:80']

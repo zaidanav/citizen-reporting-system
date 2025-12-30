@@ -104,6 +104,7 @@ func main() {
 	// HTTP Server
 	http.HandleFunc("/notifications/subscribe", subscribeHandler)
 	http.HandleFunc("/health", healthHandler)
+	http.HandleFunc("/metrics", metricsHandler)
 
 	port := os.Getenv("NOTIFICATION_PORT")
 	if port == "" {
@@ -212,8 +213,35 @@ func subscribeHandler(w http.ResponseWriter, r *http.Request) {
 // Health check endpoint
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"status":  "healthy",
-		"service": "notification-service",
-	})
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	mu.RLock()
+	connectedClients := len(clients)
+	mu.RUnlock()
+
+	health := map[string]interface{}{
+		"status":            "UP",
+		"service":           "notification-service",
+		"connected_clients": connectedClients,
+	}
+
+	json.NewEncoder(w).Encode(health)
+}
+
+// Metrics handler
+func metricsHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	mu.RLock()
+	connectedClients := len(clients)
+	mu.RUnlock()
+
+	metrics := map[string]interface{}{
+		"service":           "notification-service",
+		"connected_clients": connectedClients,
+		"broadcast_queue":   len(broadcast),
+	}
+
+	json.NewEncoder(w).Encode(metrics)
 }

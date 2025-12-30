@@ -6,6 +6,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
+	"strings"
 
 	"citizen-reporting-system/pkg/database"
 	"citizen-reporting-system/pkg/middleware"
@@ -17,6 +19,37 @@ import (
 )
 
 var db *gorm.DB
+
+var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+
+// isValidEmail validates email format
+func isValidEmail(email string) bool {
+	return emailRegex.MatchString(email)
+}
+
+// isValidPassword checks password strength
+func isValidPassword(password string) (bool, string) {
+	if len(password) < 8 {
+		return false, "Password must be at least 8 characters"
+	}
+	if len(password) > 100 {
+		return false, "Password too long"
+	}
+	return true, ""
+}
+
+// isValidNIK validates Indonesian NIK format (16 digits)
+func isValidNIK(nik string) bool {
+	if len(nik) != 16 {
+		return false
+	}
+	for _, c := range nik {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
 
 func main() {
 	dsn := fmt.Sprintf(
@@ -50,6 +83,10 @@ func main() {
 
 	http.HandleFunc("/api/auth/me", middleware.LoggerMiddleware(middleware.AuthMiddleware(meHandler)).ServeHTTP)
 
+	// Health check and metrics
+	http.HandleFunc("/health", healthCheckHandler)
+	http.HandleFunc("/metrics", metricsHandler)
+
 	port := ":8081"
 	log.Printf("🚀 Auth Service running on port %s", port)
 	if err := http.ListenAndServe(port, nil); err != nil {
@@ -72,24 +109,52 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		response.Error(w, http.StatusBadRequest, "Invalid request payload", err.Error())
+		log.Printf("[WARN] Invalid request format from IP: %s", r.RemoteAddr)
+		response.Error(w, http.StatusBadRequest, "Invalid request payload", "")
 		return
 	}
 
+	// Validate required fields
 	if input.Email == "" || input.Password == "" || input.Name == "" {
 		response.Error(w, http.StatusBadRequest, "Email, Password, and Name are required", "")
 		return
 	}
 
+	// Validate email format
+	if !isValidEmail(input.Email) {
+		response.Error(w, http.StatusBadRequest, "Invalid email format", "")
+		return
+	}
+
+	// Validate password strength
+	if valid, msg := isValidPassword(input.Password); !valid {
+		response.Error(w, http.StatusBadRequest, msg, "")
+		return
+	}
+
+	// Validate name length
+	if len(strings.TrimSpace(input.Name)) < 3 {
+		response.Error(w, http.StatusBadRequest, "Name must be at least 3 characters", "")
+		return
+	}
+
+	// Validate NIK if provided
+	if input.NIK != "" && !isValidNIK(input.NIK) {
+		response.Error(w, http.StatusBadRequest, "NIK must be 16 digits", "")
+		return
+	}
+
 	var existingUser models.User
 	if result := db.Where("email = ?", input.Email).First(&existingUser); result.Error == nil {
+		log.Printf("[WARN] Registration attempt with existing email: %s", input.Email)
 		response.Error(w, http.StatusConflict, "Email already registered", "")
 		return
 	}
 
 	hashedPassword, err := utils.HashPassword(input.Password)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "Failed to hash password", err.Error())
+		log.Printf("[ERROR] Failed to hash password: %v", err)
+		response.Error(w, http.StatusInternalServerError, "Failed to process registration", "")
 		return
 	}
 
@@ -101,7 +166,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	newUser := models.User{
 		Email:      input.Email,
 		Password:   hashedPassword,
-		Name:       input.Name,
+		Name:       strings.TrimSpace(input.Name),
 		NIK:        nikPtr,
 		Phone:      input.Phone,
 		Role:       "citizen",
@@ -111,10 +176,15 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Save user to database
 	if err := db.Create(&newUser).Error; err != nil {
-		response.Error(w, http.StatusInternalServerError, "Failed to save user", err.Error())
+		log.Printf("[ERROR] Failed to save user to database: %v", err)
+		response.Error(w, http.StatusInternalServerError, "Failed to save user", "")
 		return
 	}
 
+	log.Printf("[OK] User registered - Email: %s, ID: %s", newUser.Email, newUser.ID)
+
+	// Remove password from response
+	newUser.Password = ""
 	response.Success(w, http.StatusCreated, "User registered successfully", newUser)
 }
 func loginHandler(w http.ResponseWriter, r *http.Request) {
@@ -129,26 +199,37 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		response.Error(w, http.StatusBadRequest, "Invalid request payload", err.Error())
+		log.Printf("[WARN] Invalid login request format from IP: %s", r.RemoteAddr)
+		response.Error(w, http.StatusBadRequest, "Invalid request payload", "")
+		return
+	}
+
+	if input.Email == "" || input.Password == "" {
+		response.Error(w, http.StatusBadRequest, "Email and Password are required", "")
 		return
 	}
 
 	var user models.User
 	if err := db.Where("email = ?", input.Email).First(&user).Error; err != nil {
+		log.Printf("[WARN] Failed login attempt for email: %s from IP: %s", input.Email, r.RemoteAddr)
 		response.Error(w, http.StatusUnauthorized, "Invalid email or password", "")
 		return
 	}
 
 	if !utils.CheckPasswordHash(input.Password, user.Password) {
+		log.Printf("[WARN] Invalid password attempt for email: %s from IP: %s", input.Email, r.RemoteAddr)
 		response.Error(w, http.StatusUnauthorized, "Invalid email or password", "")
 		return
 	}
 
 	token, err := utils.GenerateJWT(user.ID, user.Email, user.Role, user.Department, user.AccessRole)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "Failed to generate token", err.Error())
+		log.Printf("[ERROR] Failed to generate JWT for user: %s", user.ID)
+		response.Error(w, http.StatusInternalServerError, "Failed to generate token", "")
 		return
 	}
+
+	log.Printf("[OK] User logged in - Email: %s, Role: %s, Department: %s", user.Email, user.Role, user.Department)
 
 	response.Success(w, http.StatusOK, "Login successful", map[string]interface{}{
 		"token":       token,
@@ -173,4 +254,48 @@ func meHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.Success(w, http.StatusOK, "User profile fetched", user)
+}
+
+// healthCheckHandler returns service health status
+func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
+	health := map[string]interface{}{
+		"status":  "UP",
+		"service": "auth-service",
+	}
+
+	// Check database connectivity
+	sqlDB, err := db.DB()
+	if err != nil || sqlDB.Ping() != nil {
+		health["status"] = "DOWN"
+		health["database"] = "disconnected"
+		w.WriteHeader(http.StatusServiceUnavailable)
+	} else {
+		health["database"] = "connected"
+		w.WriteHeader(http.StatusOK)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(health)
+}
+
+// metricsHandler returns basic metrics for monitoring
+func metricsHandler(w http.ResponseWriter, r *http.Request) {
+	var totalUsers int64
+	db.Model(&models.User{}).Count(&totalUsers)
+
+	var citizenCount int64
+	db.Model(&models.User{}).Where("role = ?", "citizen").Count(&citizenCount)
+
+	var adminCount int64
+	db.Model(&models.User{}).Where("role = ?", "admin").Count(&adminCount)
+
+	metrics := map[string]interface{}{
+		"service":       "auth-service",
+		"total_users":   totalUsers,
+		"citizen_count": citizenCount,
+		"admin_count":   adminCount,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(metrics)
 }

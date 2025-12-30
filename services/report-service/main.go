@@ -2,11 +2,15 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"citizen-reporting-system/pkg/database"
@@ -74,6 +78,27 @@ func mapDepartmentToCategories(department string) []string {
 	}
 }
 
+// hashIdentity creates a one-way hash of user identity for anonymous reports
+func hashIdentity(userID string) string {
+	hash := sha256.Sum256([]byte(userID + "anonymous_salt_2025"))
+	return "ANON_" + hex.EncodeToString(hash[:])[:16]
+}
+
+// isValidCategory checks if category is in allowed list
+func isValidCategory(category string) bool {
+	validCategories := map[string]bool{
+		"Sampah":              true,
+		"Jalan Rusak":         true,
+		"Drainase":            true,
+		"Fasilitas Umum":      true,
+		"Lampu Jalan":         true,
+		"Polusi":              true,
+		"Traffic & Transport": true,
+		"Keamanan":            true,
+	}
+	return validCategories[category]
+}
+
 func main() {
 	mongoURI := fmt.Sprintf("mongodb://%s:%s@%s:%s",
 		os.Getenv("MONGO_USER"),
@@ -115,9 +140,14 @@ func main() {
 
 	// Setup HTTP routes
 	mux.Handle("/api/reports", middleware.LoggerMiddleware(middleware.AuthMiddleware(http.HandlerFunc(reportsHandler))))
+	mux.Handle("/api/reports/upload", middleware.LoggerMiddleware(middleware.AuthMiddleware(http.HandlerFunc(uploadImageHandler))))
 	mux.Handle("/api/reports/mine", middleware.LoggerMiddleware(middleware.AuthMiddleware(http.HandlerFunc(myReportsHandler))))
 	mux.Handle("/api/reports/", middleware.LoggerMiddleware(middleware.AuthMiddleware(http.HandlerFunc(reportDetailHandler))))
 	mux.Handle("/internal/updates", middleware.LoggerMiddleware(http.HandlerFunc(internalUpdateStatusHandler)))
+
+	// Health check and metrics endpoints
+	mux.HandleFunc("/health", healthCheckHandler)
+	mux.HandleFunc("/metrics", metricsHandler)
 
 	// Admin endpoints (no auth required for now, can be protected later)
 	// Register specific routes BEFORE generic ones to prevent premature matching
@@ -220,8 +250,24 @@ func createReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validation
 	if input.Title == "" || input.Description == "" || input.Category == "" {
 		response.Error(w, http.StatusBadRequest, "Title, Description, and Category are required", "")
+		return
+	}
+
+	if len(input.Title) < 5 || len(input.Title) > 200 {
+		response.Error(w, http.StatusBadRequest, "Title must be between 5-200 characters", "")
+		return
+	}
+
+	if len(input.Description) < 10 {
+		response.Error(w, http.StatusBadRequest, "Description must be at least 10 characters", "")
+		return
+	}
+
+	if !isValidCategory(input.Category) {
+		response.Error(w, http.StatusBadRequest, "Invalid category", "")
 		return
 	}
 
@@ -238,6 +284,15 @@ func createReport(w http.ResponseWriter, r *http.Request) {
 	}
 	// else default "public" - isPublic=true, isAnon=false
 
+	// Prepare reporter identity - CRITICAL: Hash if anonymous
+	reporterID := claims.UserID
+	reporter := claims.Email
+	if isAnon {
+		reporterID = hashIdentity(claims.UserID)
+		reporter = "Pelapor Anonim"
+		log.Printf("[SECURITY] Anonymous report - Identity hashed for user: %s", claims.UserID[:8])
+	}
+
 	log.Printf("[INFO] Creating report - Privacy: %s, IsPublic: %v, IsAnonymous: %v", input.Privacy, isPublic, isAnon)
 
 	newReport := models.Report{
@@ -249,8 +304,8 @@ func createReport(w http.ResponseWriter, r *http.Request) {
 		ImageURL:    input.ImageUrl,
 		IsAnonymous: isAnon,
 		IsPublic:    isPublic,
-		ReporterID:  claims.UserID,
-		Reporter:    claims.Email,
+		ReporterID:  reporterID,
+		Reporter:    reporter,
 		// Use uppercase status to stay consistent with admin filtering/UI badges
 		Status:    "PENDING",
 		Upvotes:   0,
@@ -572,6 +627,17 @@ func adminReportsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// Get department from JWT token (RBAC enforcement)
+	department := r.Header.Get("X-Department") // Fallback for backward compatibility
+
+	// Try to get from JWT claims first (more secure)
+	if claims, ok := r.Context().Value(middleware.UserContextKey).(*middleware.UserClaims); ok {
+		if claims.Department != "" {
+			department = claims.Department
+			log.Printf("[SECURITY] Using department from JWT: %s", department)
+		}
+	}
+
 	// Build filter
 	filter := bson.M{}
 
@@ -581,9 +647,8 @@ func adminReportsHandler(w http.ResponseWriter, r *http.Request) {
 		filter["status"] = status
 	}
 
-	// Department-based category filter
-	department := r.Header.Get("X-Department")
-	if department != "" {
+	// Department-based category filter (RBAC)
+	if department != "" && department != "general" {
 		allowedCategories := mapDepartmentToCategories(department)
 		if len(allowedCategories) > 0 {
 			filter["category"] = bson.M{"$in": allowedCategories}
@@ -594,7 +659,7 @@ func adminReportsHandler(w http.ResponseWriter, r *http.Request) {
 	// Category filter (if explicitly provided, must be within department scope)
 	category := r.URL.Query().Get("category")
 	if category != "" {
-		if department != "" {
+		if department != "" && department != "general" {
 			allowedCategories := mapDepartmentToCategories(department)
 			found := false
 			for _, c := range allowedCategories {
@@ -1173,4 +1238,138 @@ func adminEscalateReportHandler(w http.ResponseWriter, r *http.Request) {
 		"is_escalated": true,
 		"escalated_at": time.Now(),
 	})
+}
+
+// uploadImageHandler handles image upload to local storage (MinIO-compatible)
+func uploadImageHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		response.Error(w, http.StatusMethodNotAllowed, "Method not allowed", "")
+		return
+	}
+
+	// Parse multipart form (max 10MB)
+	err := r.ParseMultipartForm(10 << 20)
+	if err != nil {
+		response.Error(w, http.StatusBadRequest, "Failed to parse form", err.Error())
+		return
+	}
+
+	file, handler, err := r.FormFile("image")
+	if err != nil {
+		response.Error(w, http.StatusBadRequest, "No image file provided", err.Error())
+		return
+	}
+	defer file.Close()
+
+	// Validate file type
+	allowedTypes := map[string]bool{
+		"image/jpeg": true,
+		"image/jpg":  true,
+		"image/png":  true,
+		"image/webp": true,
+	}
+
+	contentType := handler.Header.Get("Content-Type")
+	if !allowedTypes[contentType] {
+		response.Error(w, http.StatusBadRequest, "Invalid file type. Only JPEG, PNG, and WebP allowed", "")
+		return
+	}
+
+	// Validate file size (max 5MB)
+	if handler.Size > 5<<20 {
+		response.Error(w, http.StatusBadRequest, "File too large. Maximum 5MB allowed", "")
+		return
+	}
+
+	// Generate unique filename
+	ext := filepath.Ext(handler.Filename)
+	timestamp := time.Now().UnixNano()
+	filename := fmt.Sprintf("report_%d%s", timestamp, ext)
+
+	// Create uploads directory if not exists
+	uploadDir := "./uploads"
+	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to create upload directory", err.Error())
+		return
+	}
+
+	// Save file
+	dst, err := os.Create(filepath.Join(uploadDir, filename))
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to create file", err.Error())
+		return
+	}
+	defer dst.Close()
+
+	_, err = io.Copy(dst, file)
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to save file", err.Error())
+		return
+	}
+
+	// Return file URL (accessible via storage endpoint)
+	fileURL := fmt.Sprintf("/storage/uploads/%s", filename)
+
+	log.Printf("[OK] Image uploaded - Filename: %s, Size: %d bytes", filename, handler.Size)
+
+	response.Success(w, http.StatusOK, "Image uploaded successfully", map[string]interface{}{
+		"url":      fileURL,
+		"filename": filename,
+		"size":     handler.Size,
+	})
+}
+
+// healthCheckHandler returns service health status
+func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
+	health := map[string]interface{}{
+		"status":    "UP",
+		"service":   "report-service",
+		"timestamp": time.Now().Format(time.RFC3339),
+	}
+
+	// Check database connectivity
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	if err := db.Client().Ping(ctx, nil); err != nil {
+		health["status"] = "DOWN"
+		health["database"] = "disconnected"
+		w.WriteHeader(http.StatusServiceUnavailable)
+	} else {
+		health["database"] = "connected"
+		w.WriteHeader(http.StatusOK)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(health)
+}
+
+// metricsHandler returns basic metrics for monitoring
+func metricsHandler(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Count total reports
+	totalReports, _ := db.Collection("reports").CountDocuments(ctx, bson.M{})
+
+	// Count by status
+	pendingReports, _ := db.Collection("reports").CountDocuments(ctx, bson.M{"status": "PENDING"})
+	inProgressReports, _ := db.Collection("reports").CountDocuments(ctx, bson.M{"status": "IN_PROGRESS"})
+	resolvedReports, _ := db.Collection("reports").CountDocuments(ctx, bson.M{"status": "RESOLVED"})
+
+	// Count anonymous reports
+	anonymousReports, _ := db.Collection("reports").CountDocuments(ctx, bson.M{"is_anonymous": true})
+
+	metrics := map[string]interface{}{
+		"service":            "report-service",
+		"timestamp":          time.Now().Format(time.RFC3339),
+		"total_reports":      totalReports,
+		"pending_reports":    pendingReports,
+		"inprogress_reports": inProgressReports,
+		"resolved_reports":   resolvedReports,
+		"anonymous_reports":  anonymousReports,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(metrics)
 }
