@@ -413,7 +413,7 @@ func createReport(w http.ResponseWriter, r *http.Request) {
 		isPublic = false
 		isAnon = false
 	} else if input.Privacy == "anonymous" {
-		isPublic = true
+		isPublic = false
 		isAnon = true
 	}
 	// else default "public" - isPublic=true, isAnon=false
@@ -547,9 +547,12 @@ func myReportsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Filter by user's ID - return all reports (public and private) of this user
+	hashedID := hashIdentity(claims.UserID)
 	filter := bson.M{
-		"reporter_id": claims.UserID,
+		"$or": []bson.M{
+			{"reporter_id": claims.UserID},
+			{"reporter_id": hashedID},
+		},
 	}
 	status := r.URL.Query().Get("status")
 	if status != "" {
