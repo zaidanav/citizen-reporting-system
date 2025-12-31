@@ -235,6 +235,8 @@ func main() {
 	mux.Handle("/admin/reports", adminChain(http.HandlerFunc(adminReportsHandler)))
 	mux.Handle("/admin/reports/", adminChain(http.HandlerFunc(adminReportDetailHandler)))
 
+	go startAutoEscalationWorker()
+
 	port := ":8082"
 	log.Printf("[INFO] Report Service running on port %s", port)
 
@@ -451,6 +453,8 @@ func createReport(w http.ResponseWriter, r *http.Request) {
 		assignedDepts = []string{"PEMDA PUSAT (KATEGORI UMUM)"}
 	}
 
+	slaDeadline := time.Now().Add(48 * time.Hour)
+
 	newReport := models.Report{
 		ID:                  primitive.NewObjectID(),
 		Title:               input.Title,
@@ -468,6 +472,7 @@ func createReport(w http.ResponseWriter, r *http.Request) {
 		Upvotes:             0,
 		CreatedAt:           time.Now(),
 		UpdatedAt:           time.Now(),
+		SlaDeadline:         &slaDeadline,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1791,4 +1796,78 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(metrics)
+}
+
+func startAutoEscalationWorker() {
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+
+	log.Println("[INFO] Auto-Escalation Worker started")
+
+	for range ticker.C {
+		checkAndEscalateReports()
+	}
+}
+
+func checkAndEscalateReports() {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	filter := bson.M{
+		"status":       bson.M{"$in": []string{"PENDING", "IN_PROGRESS"}},
+		"sla_deadline": bson.M{"$lt": time.Now()},
+		"is_escalated": bson.M{"$ne": true},
+	}
+
+	cursor, err := db.Collection("reports").Find(ctx, filter)
+	if err != nil {
+		log.Printf("[ERROR] Auto-Escalation: Failed to fetch expired reports: %v", err)
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var reports []models.Report
+	if err := cursor.All(ctx, &reports); err != nil {
+		log.Printf("[ERROR] Auto-Escalation: Failed to decode reports: %v", err)
+		return
+	}
+
+	if len(reports) == 0 {
+		return
+	}
+
+	log.Printf("[INFO] Auto-Escalation: Found %d reports breaching SLA", len(reports))
+
+	for _, report := range reports {
+		escalateReportAuto(report)
+	}
+}
+
+func escalateReportAuto(report models.Report) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	now := time.Now()
+	update := bson.M{
+		"$set": bson.M{
+			"is_escalated": true,
+			"escalated_at": now,
+			"escalated_by": "SYSTEM_AUTO_SLA",
+			"updated_at":   now,
+		},
+	}
+
+	_, err := db.Collection("reports").UpdateOne(ctx, bson.M{"_id": report.ID}, update)
+	if err != nil {
+		log.Printf("[ERROR] Auto-Escalation: Failed to update report %s: %v", report.ID.Hex(), err)
+		return
+	}
+
+	log.Printf("[INFO] Auto-Escalation: Report %s escalated (SLA breach)", report.ID.Hex())
+
+	go func(reportID string) {
+		if err := publishNotificationEvent(reportID, "Laporan Dieskalasi Otomatis (SLA)", "IN_PROGRESS"); err != nil {
+			log.Printf("[WARN] Failed to publish auto-escalation notification for %s: %v", reportID, err)
+		}
+	}(report.ID.Hex())
 }
