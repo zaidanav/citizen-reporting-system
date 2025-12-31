@@ -10,6 +10,9 @@ import (
 	"sync"
 	"time"
 
+	"citizen-reporting-system/pkg/middleware"
+
+	"github.com/golang-jwt/jwt/v5"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -26,10 +29,10 @@ type NotificationEvent struct {
 }
 
 type Client struct {
-	UserID      string
-	AccessRole  string
-	Department  string
-	Send        chan NotificationEvent
+	UserID     string
+	AccessRole string
+	Department string
+	Send       chan NotificationEvent
 }
 
 func normalizeDepartment(department string) string {
@@ -74,6 +77,31 @@ var (
 	unregister = make(chan *Client)
 	mu         sync.RWMutex
 )
+
+func getJWTSecret() []byte {
+	if v := strings.TrimSpace(os.Getenv("JWT_SECRET")); v != "" {
+		return []byte(v)
+	}
+	return []byte("SUPER_SECRET_KEY_CHANGE_ME")
+}
+
+func validateToken(tokenString string) (*middleware.UserClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &middleware.UserClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return getJWTSecret(), nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if claims, ok := token.Claims.(*middleware.UserClaims); ok && token.Valid {
+		return claims, nil
+	}
+	return nil, fmt.Errorf("invalid token claims")
+}
 
 func main() {
 	// Build RabbitMQ URL from environment variables
@@ -235,14 +263,29 @@ func handleClients() {
 
 // SSE Handler for client subscriptions
 func subscribeHandler(w http.ResponseWriter, r *http.Request) {
-	// Get userID from query
-	userID := r.URL.Query().Get("user_id")
-	if userID == "" {
-		http.Error(w, "user_id is required", http.StatusBadRequest)
+	tokenString := r.URL.Query().Get("token")
+	if tokenString == "" {
+		authHeader := r.Header.Get("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
+		}
+	}
+
+	if tokenString == "" {
+		http.Error(w, "Unauthorized: Missing token", http.StatusUnauthorized)
 		return
 	}
-	accessRole := r.URL.Query().Get("access_role")
-	department := r.URL.Query().Get("department")
+
+	claims, err := validateToken(tokenString)
+	if err != nil {
+		log.Printf("[WARN] Invalid token attempt: %v", err)
+		http.Error(w, "Unauthorized: Invalid token", http.StatusUnauthorized)
+		return
+	}
+
+	userID := claims.UserID
+	accessRole := claims.Role
+	department := claims.Department
 
 	// Set SSE headers
 	w.Header().Set("Content-Type", "text/event-stream")
