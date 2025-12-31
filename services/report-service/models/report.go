@@ -14,6 +14,7 @@ type Report struct {
 	Location    string             `bson:"location,omitempty" json:"location,omitempty"`
 	IsAnonymous bool               `bson:"is_anonymous" json:"is_anonymous"`
 	IsPublic    bool               `bson:"is_public" json:"is_public"` // Privacy control
+	AssignedDepartments []string   `bson:"assigned_departments" json:"assigned_departments"` // ACL for private reports
 	ReporterID  string             `bson:"reporter_id" json:"reporter_id"`
 	// ReporterIDEnc stores the real reporter user id encrypted (AES-GCM) for anonymous reports.
 	// It is never returned in any API response.

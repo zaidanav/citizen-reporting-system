@@ -439,23 +439,35 @@ func createReport(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("[INFO] Creating report - Privacy: %s, IsPublic: %v, IsAnonymous: %v", input.Privacy, isPublic, isAnon)
 
+	var assignedDepts []string
+	switch input.Category {
+	case "Sampah":
+		assignedDepts = []string{"DINAS KEBERSIHAN"}
+	case "Jalan":
+		assignedDepts = []string{"DINAS PU (PEKERJAAN UMUM)"}
+	case "Keamanan":
+		assignedDepts = []string{"KEPOLISIAN / SATPOL PP"}
+	default:
+		assignedDepts = []string{"PEMDA PUSAT (KATEGORI UMUM)"}
+	}
+
 	newReport := models.Report{
-		ID:            primitive.NewObjectID(),
-		Title:         input.Title,
-		Description:   input.Description,
-		Category:      input.Category,
-		Location:      input.Location,
-		ImageURL:      input.ImageUrl,
-		IsAnonymous:   isAnon,
-		IsPublic:      isPublic,
-		ReporterID:    reporterID,
-		ReporterIDEnc: reporterIDEnc,
-		Reporter:      reporter,
-		// Use uppercase status to stay consistent with admin filtering/UI badges
-		Status:    "PENDING",
-		Upvotes:   0,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID:                  primitive.NewObjectID(),
+		Title:               input.Title,
+		Description:         input.Description,
+		Category:            input.Category,
+		Location:            input.Location,
+		ImageURL:            input.ImageUrl,
+		IsAnonymous:         isAnon,
+		IsPublic:            isPublic,
+		AssignedDepartments: assignedDepts,
+		ReporterID:          reporterID,
+		ReporterIDEnc:       reporterIDEnc,
+		Reporter:            reporter,
+		Status:              "PENDING",
+		Upvotes:             0,
+		CreatedAt:           time.Now(),
+		UpdatedAt:           time.Now(),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -507,9 +519,19 @@ func getReports(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	filter := bson.M{
-		"is_public": true, // Only return public reports
+	filter := bson.M{}
+
+	if claims != nil && (claims.Role == "admin" || claims.Department != "") {
+		if claims.Role == "admin" {
+			filter["$or"] = []bson.M{
+				{"is_public": true},
+				{"assigned_departments": claims.Department},
+			}
+		}
+	} else {
+		filter["is_public"] = true
 	}
+
 	status := r.URL.Query().Get("status")
 	if status != "" {
 		filter["status"] = status
@@ -605,6 +627,27 @@ func getReportByID(w http.ResponseWriter, r *http.Request, id string) {
 	// Mask anonymous reporter name
 	maskAnonymousReporterSingle(&report)
 	claims, _ := r.Context().Value(middleware.UserContextKey).(*middleware.UserClaims)
+
+	if !report.IsPublic {
+		allowed := false
+		if claims != nil {
+			if claims.UserID == report.ReporterID || claims.Role == "admin" {
+				allowed = true
+			} else {
+				for _, dept := range report.AssignedDepartments {
+					if dept == claims.Department {
+						allowed = true
+						break
+					}
+				}
+			}
+		}
+		if !allowed {
+			response.Error(w, http.StatusForbidden, "Access denied: Private report", "")
+			return
+		}
+	}
+
 	if claims != nil {
 		computeHasUpvoted(&report, claims.UserID)
 	}
