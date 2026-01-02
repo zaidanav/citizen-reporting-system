@@ -43,8 +43,9 @@ services:
       - "15672:15672"
       - "15692:15692"
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-guest}
+      # Do not use 'guest' for inter-container auth; RabbitMQ blocks it remotely by default.
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-lapcw}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-lapcw}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
@@ -154,8 +155,8 @@ services:
       - MONGO_PASSWORD=password
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PORT=5672
-      - RABBITMQ_USER=guest
-      - RABBITMQ_PASS=guest
+      - RABBITMQ_USER=${RABBITMQ_USER:-lapcw}
+      - RABBITMQ_PASS=${RABBITMQ_PASS:-lapcw}
 
       - JWT_SECRET=supersecretkey
 
@@ -182,11 +183,11 @@ services:
     ports:
       - "8084:8084"
     environment:
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-lapcw}:${RABBITMQ_PASS:-lapcw}@rabbitmq:5672/
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PORT=5672
-      - RABBITMQ_USER=guest
-      - RABBITMQ_PASS=guest
+      - RABBITMQ_USER=${RABBITMQ_USER:-lapcw}
+      - RABBITMQ_PASS=${RABBITMQ_PASS:-lapcw}
       - NOTIFICATION_PORT=8084
       - JWT_SECRET=supersecretkey
     depends_on:
@@ -204,8 +205,8 @@ services:
     environment:
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PORT=5672
-      - RABBITMQ_USER=guest
-      - RABBITMQ_PASS=guest
+      - RABBITMQ_USER=${RABBITMQ_USER:-lapcw}
+      - RABBITMQ_PASS=${RABBITMQ_PASS:-lapcw}
       - REPORT_SERVICE_URL=http://report-service:8082
     depends_on:
       rabbitmq:

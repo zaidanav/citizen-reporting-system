@@ -19,6 +19,14 @@ $admins = @(
         access_role = "operational"
     },
     @{
+        email = "superadmin@dinas.com"
+        password = "admin123"
+        name = "Super Admin"
+        department = "general"
+        access_role = "strategic"
+        role = "super-admin"
+    },
+    @{
         email = "pimpinan@dinas.com"
         password = "admin123"
         name = "Pimpinan Dinas"
@@ -67,6 +75,7 @@ foreach ($admin in $admins) {
     $name = $admin.name
     $dept = $admin.department
     $access = $admin.access_role
+    $role = if ($admin.ContainsKey('role')) { $admin.role } else { 'admin' }
     
     Write-Host "`n- $email ($access)" -ForegroundColor Yellow
     
@@ -96,9 +105,9 @@ foreach ($admin in $admins) {
     }
     
     # Update role, department, and access_role
-    $updateSql = "UPDATE users SET role = 'admin', department = '$dept', access_role = '$access' WHERE email = '$email';"
+    $updateSql = "UPDATE users SET role = '$role', department = '$dept', access_role = '$access' WHERE email = '$email';"
     docker exec lapcw-postgres psql -U admin -d auth_db -c $updateSql | Out-Null
-    Write-Host "  [Updated] admin | $dept | $access" -ForegroundColor Green
+    Write-Host "  [Updated] $role | $dept | $access" -ForegroundColor Green
 }
 
 Write-Host "`n" -ForegroundColor Cyan
@@ -116,6 +125,9 @@ Write-Host "  perhubungan@dinas.com" -ForegroundColor White
 
 Write-Host "`nStrategic Access (Dashboard + Eskalasi + Analytics) [RECOMMENDED]:" -ForegroundColor Cyan
 Write-Host "  pimpinan@dinas.com" -ForegroundColor White
+
+Write-Host "`nSuper Admin (Cross-Department Monitoring):" -ForegroundColor Cyan
+Write-Host "  superadmin@dinas.com" -ForegroundColor White
 
 Write-Host "`nPassword untuk semua akun: admin123" -ForegroundColor White
 Write-Host "`nURL: http://localhost:3001" -ForegroundColor Cyan

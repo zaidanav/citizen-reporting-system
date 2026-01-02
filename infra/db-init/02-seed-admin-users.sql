@@ -2,6 +2,9 @@
 -- Password for all: admin123 (hashed with bcrypt)
 
 INSERT INTO users (email, password, name, role, access_role, department, created_at) VALUES
+-- Super Admin (can monitor cross-department)
+('superadmin@dinas.com', '$2a$10$X8qJ9YH5fN6qX5Y5Y5Y5YeH5N6qX5Y5Y5Y5YeH5N6qX5Y5Y5Y5Ye', 'Super Admin', 'super-admin', 'strategic', 'general', NOW()),
+
 -- Admin Umum (can see all categories) - Operational
 ('admin@dinas.com', '$2a$10$X8qJ9YH5fN6qX5Y5Y5Y5YeH5N6qX5Y5Y5Y5YeH5N6qX5Y5Y5Y5Ye', 'Admin Umum', 'admin', 'operational', 'general', NOW()),
 

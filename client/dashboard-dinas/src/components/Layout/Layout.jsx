@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { getAccessRoleFromStorage } from '../../utils/jwtHelper';
+import { getAccessRoleFromStorage, getRoleFromStorage } from '../../utils/jwtHelper';
 import './Layout.css';
 
 const Layout = ({ setAuth }) => {
@@ -8,6 +8,8 @@ const Layout = ({ setAuth }) => {
   const user = JSON.parse(localStorage.getItem('admin_user') || '{}');
   const accessRole = getAccessRoleFromStorage();
   const isStrategic = accessRole === 'strategic';
+  const role = getRoleFromStorage();
+  const isSuperAdmin = role === 'super-admin';
 
   const handleLogout = () => {
     localStorage.removeItem('admin_token');
@@ -24,6 +26,9 @@ const Layout = ({ setAuth }) => {
             <span className="admin-navbar-title">Dashboard Dinas</span>
             {isStrategic && (
               <span className="admin-navbar-badge">Strategis</span>
+            )}
+            {isSuperAdmin && (
+              <span className="admin-navbar-badge">Super Admin</span>
             )}
           </div>
           
@@ -43,6 +48,14 @@ const Layout = ({ setAuth }) => {
                 `admin-navbar-link ${isActive ? 'admin-navbar-link--active' : ''}`
               }>
                 Analitik
+              </NavLink>
+            )}
+
+            {isSuperAdmin && (
+              <NavLink to="/performance" className={({ isActive }) => 
+                `admin-navbar-link ${isActive ? 'admin-navbar-link--active' : ''}`
+              }>
+                Performa
               </NavLink>
             )}
           </div>

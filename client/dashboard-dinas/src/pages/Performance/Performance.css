@@ -1,0 +1,184 @@
+/* Performance Page - Consistent with Analytics UI */
+.performance-page {
+  padding: var(--spacing-xl);
+}
+
+.performance-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-xl);
+  flex-wrap: wrap;
+  gap: var(--spacing-lg);
+}
+
+.performance-title {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-sm);
+}
+
+.performance-subtitle {
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+}
+
+.performance-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.performance-dept-select {
+  padding: 10px 14px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  background-color: var(--bg-card);
+  border: 2px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  outline: none;
+}
+
+.performance-dept-select:focus {
+  border-color: var(--accent-primary);
+}
+
+/* Time Range Selector - match Analytics */
+.performance-time-range {
+  display: flex;
+  gap: var(--spacing-xs);
+  background-color: var(--bg-card);
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-md);
+  border: 2px solid var(--border-primary);
+}
+
+.performance-time-btn {
+  padding: 10px 20px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  background-color: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.performance-time-btn:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-tertiary);
+}
+
+.performance-time-btn--active {
+  background-color: var(--accent-primary);
+  color: #0D1F2D;
+  font-weight: 700;
+}
+
+/* KPI Grid */
+.performance-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+}
+
+.performance-kpi-card {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-lg);
+  background-color: var(--bg-card);
+  border: 2px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.performance-kpi-card__value {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+  margin-bottom: var(--spacing-xs);
+}
+
+.performance-kpi-card__title {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+/* Department grid */
+.dept-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+.dept-card {
+  padding: var(--spacing-lg);
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.dept-card__title {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-md);
+}
+
+.dept-card__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-sm);
+}
+
+.dept-stat {
+  padding: var(--spacing-sm);
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+}
+
+.dept-stat__label {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.dept-stat__value {
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* Reuse shared loading/empty styles */
+.loading-state,
+.empty-state {
+  padding: 40px;
+  text-align: center;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--border-primary);
+  border-top: 4px solid var(--accent-primary);
+  border-radius: 50%;
+  margin: 0 auto 16px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

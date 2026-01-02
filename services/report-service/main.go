@@ -61,6 +61,39 @@ func normalizeDepartment(department string) string {
 	return d
 }
 
+func departmentAliases(normalized string) []string {
+	switch normalizeDepartment(normalized) {
+	case "kebersihan":
+		return []string{"kebersihan", "DINAS KEBERSIHAN", "Dinas Kebersihan"}
+	case "pekerjaan_umum", "pekerjaanumum", "pu":
+		return []string{"pekerjaan_umum", "DINAS PU (PEKERJAAN UMUM)", "DINAS PU", "Dinas PU (Pekerjaan Umum)"}
+	case "penerangan", "penerangan_jalan":
+		return []string{"penerangan_jalan", "DINAS PENERANGAN JALAN", "Penerangan Jalan", "Dinas Penerangan Jalan"}
+	case "lingkungan_hidup", "lingkungan":
+		return []string{"lingkungan_hidup", "DINAS LINGKUNGAN HIDUP", "Lingkungan Hidup", "Dinas Lingkungan Hidup"}
+	case "perhubungan":
+		return []string{"perhubungan", "DINAS PERHUBUNGAN", "Perhubungan", "Dinas Perhubungan"}
+	case "keamanan":
+		return []string{"keamanan", "KEPOLISIAN / SATPOL PP", "KEPOLISIAN", "SATPOL PP"}
+	case "general":
+		return []string{"general", "PEMDA PUSAT (KATEGORI UMUM)", "PEMDA", "UMUM"}
+	default:
+		return []string{normalized}
+	}
+}
+
+func canonicalDepartmentKey(raw interface{}) string {
+	s, _ := raw.(string)
+	n := normalizeDepartment(s)
+	for _, a := range departmentAliases(n) {
+		if a == s {
+			return n
+		}
+	}
+	// If it isn't one of known verbose labels, still return a normalized key.
+	return n
+}
+
 // mapCategoryToDepartment maps report categories to departments
 func mapCategoryToDepartment(category string) []string {
 	switch category {
@@ -225,13 +258,14 @@ func main() {
 
 	// Admin endpoints (JWT required + role-based access)
 	adminChain := func(h http.Handler) http.Handler {
-		return middleware.LoggerMiddleware(middleware.AuthMiddleware(middleware.RequireRole("admin")(h)))
+		return middleware.LoggerMiddleware(middleware.AuthMiddleware(middleware.RequireRole("admin", "super-admin")(h)))
 	}
 	// Register specific routes BEFORE generic ones to prevent premature matching
 	mux.Handle("/admin/reports/escalation", adminChain(http.HandlerFunc(adminEscalationHandler)))
 	mux.Handle("/admin/reports/escalate/", adminChain(http.HandlerFunc(adminEscalateReportHandler)))
 	mux.Handle("/admin/reports/forward/", adminChain(http.HandlerFunc(adminForwardReportHandler)))
 	mux.Handle("/admin/analytics", adminChain(http.HandlerFunc(adminAnalyticsHandler)))
+	mux.Handle("/admin/performance", adminChain(http.HandlerFunc(adminPerformanceHandler)))
 	mux.Handle("/admin/reports", adminChain(http.HandlerFunc(adminReportsHandler)))
 	mux.Handle("/admin/reports/", adminChain(http.HandlerFunc(adminReportDetailHandler)))
 
@@ -1591,12 +1625,19 @@ func adminEscalateReportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	id := r.URL.Path[len("/admin/reports/escalate/"):]
+	if id == "" {
+		response.Error(w, http.StatusBadRequest, "Missing report ID", "")
+		return
+	}
+
 	department := ""
 	if claims, ok := r.Context().Value(middleware.UserContextKey).(*middleware.UserClaims); ok {
 		department = claims.Department
 	}
-
-	id := r.URL.Path[len("/admin/reports/escalate/"):]
+	if strings.TrimSpace(department) == "" {
+		department = "general"
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -1651,6 +1692,181 @@ func adminEscalateReportHandler(w http.ResponseWriter, r *http.Request) {
 		"is_escalated": true,
 		"escalated_at": time.Now(),
 	})
+}
+
+// Admin endpoints - Cross-department performance (super-admin monitoring)
+func adminPerformanceHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		response.Error(w, http.StatusMethodNotAllowed, "Method not allowed", "")
+		return
+	}
+
+	claims, ok := r.Context().Value(middleware.UserContextKey).(*middleware.UserClaims)
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "Unauthorized", "")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	timeRangeStr := r.URL.Query().Get("timeRange")
+	if timeRangeStr == "" {
+		timeRangeStr = "30d"
+	}
+
+	var days int
+	switch timeRangeStr {
+	case "7d":
+		days = 7
+	case "90d":
+		days = 90
+	default:
+		days = 30
+	}
+
+	startDate := time.Now().AddDate(0, 0, -days)
+
+	requestedDepartment := strings.TrimSpace(r.URL.Query().Get("department"))
+
+	// Scope rules:
+	// - super-admin: can query all (default) or a specific department via ?department=
+	// - admin: always limited to summary only (department from claims); ignores ?department=
+	scopeDepartment := ""
+	if claims.Role == "super-admin" {
+		if requestedDepartment != "" && requestedDepartment != "all" {
+			scopeDepartment = normalizeDepartment(requestedDepartment)
+		}
+	} else {
+		if strings.TrimSpace(claims.Department) != "" {
+			scopeDepartment = normalizeDepartment(claims.Department)
+		}
+	}
+
+	baseMatch := bson.M{
+		"created_at": bson.M{"$gte": startDate},
+	}
+
+	// Use AssignedDepartments when available.
+	pipeline := []bson.M{
+		{"$match": baseMatch},
+		{"$unwind": "$assigned_departments"},
+	}
+	if scopeDepartment != "" && scopeDepartment != "general" {
+		pipeline = append(pipeline, bson.M{"$match": bson.M{"assigned_departments": bson.M{"$in": departmentAliases(scopeDepartment)}}})
+	}
+
+	pipeline = append(pipeline,
+		bson.M{"$group": bson.M{
+			"_id":              "$assigned_departments",
+			"total":            bson.M{"$sum": 1},
+			"pending":          bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$status", "PENDING"}}, 1, 0}}},
+			"inProgress":       bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$status", "IN_PROGRESS"}}, 1, 0}}},
+			"completed":        bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$status", "RESOLVED"}}, 1, 0}}},
+			"total_upvotes":    bson.M{"$sum": "$upvotes"},
+			"avg_process_time": bson.M{"$avg": "$process_time_hours"},
+		}},
+		bson.M{"$sort": bson.M{"total": -1}},
+	)
+
+	cursor, err := db.Collection("reports").Aggregate(ctx, pipeline)
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to aggregate performance", err.Error())
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var rows []bson.M
+	if err := cursor.All(ctx, &rows); err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to read performance aggregation", err.Error())
+		return
+	}
+
+	departments := make([]map[string]interface{}, 0, len(rows))
+	for _, row := range rows {
+		total := int64(0)
+		pending := int64(0)
+		inProgress := int64(0)
+		completed := int64(0)
+		totalUpvotes := int64(0)
+		avgProcessTime := 0.0
+
+		if v, ok := row["total"].(int32); ok {
+			total = int64(v)
+		} else if v, ok := row["total"].(int64); ok {
+			total = v
+		}
+		if v, ok := row["pending"].(int32); ok {
+			pending = int64(v)
+		} else if v, ok := row["pending"].(int64); ok {
+			pending = v
+		}
+		if v, ok := row["inProgress"].(int32); ok {
+			inProgress = int64(v)
+		} else if v, ok := row["inProgress"].(int64); ok {
+			inProgress = v
+		}
+		if v, ok := row["completed"].(int32); ok {
+			completed = int64(v)
+		} else if v, ok := row["completed"].(int64); ok {
+			completed = v
+		}
+		if v, ok := row["total_upvotes"].(int32); ok {
+			totalUpvotes = int64(v)
+		} else if v, ok := row["total_upvotes"].(int64); ok {
+			totalUpvotes = v
+		}
+		if v, ok := row["avg_process_time"].(float64); ok {
+			avgProcessTime = v
+		} else if v, ok := row["avg_process_time"].(int32); ok {
+			avgProcessTime = float64(v)
+		} else if v, ok := row["avg_process_time"].(int64); ok {
+			avgProcessTime = float64(v)
+		}
+
+		completionRate := 0.0
+		if total > 0 {
+			completionRate = (float64(completed) / float64(total)) * 100
+		}
+
+		departments = append(departments, map[string]interface{}{
+			"department":     canonicalDepartmentKey(row["_id"]),
+			"total":          total,
+			"pending":        pending,
+			"inProgress":     inProgress,
+			"completed":      completed,
+			"completionRate": completionRate,
+			"totalUpvotes":   totalUpvotes,
+			"avgProcessTime": avgProcessTime,
+		})
+	}
+
+	scope := "self"
+	department := ""
+	if claims.Role == "super-admin" {
+		if scopeDepartment == "" {
+			scope = "all"
+		} else {
+			scope = "department"
+			department = scopeDepartment
+		}
+	} else {
+		scope = "self"
+		if scopeDepartment != "" {
+			department = scopeDepartment
+		} else {
+			department = normalizeDepartment(claims.Department)
+		}
+	}
+
+	payload := map[string]interface{}{
+		"timeRange":   timeRangeStr,
+		"scope":       scope,
+		"department":  department,
+		"departments": departments,
+	}
+
+	response.Success(w, http.StatusOK, "Performance data retrieved", payload)
 }
 
 // uploadImageHandler handles image upload to local storage (MinIO-compatible)

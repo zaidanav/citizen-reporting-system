@@ -68,6 +68,23 @@ export const reportService = {
     }
   },
 
+  // Get cross-department performance (super-admin)
+  getPerformance: async (timeRange = '30d', department = 'all') => {
+    try {
+      const deptHeader = getDepartmentFromStorage();
+      const response = await api.get('/admin/performance', {
+        params: { timeRange, department },
+        headers: {
+          'X-Department': deptHeader,
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error('[Service] Failed to fetch performance:', error);
+      throw error;
+    }
+  },
+
   // Forward report to external system
   forwardReport: async (reportId, forwardTo, notes = '') => {
     try {
