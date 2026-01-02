@@ -23,6 +23,7 @@ import (
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"github.com/minio/minio-go/v7/pkg/encrypt"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -489,12 +490,28 @@ func createReport(w http.ResponseWriter, r *http.Request) {
 
 	slaDeadline := time.Now().Add(48 * time.Hour)
 
+	encDesc, err := security.EncryptString(input.Description)
+	if err != nil {
+		log.Printf("[ERROR] Encryption failed for description: %v", err)
+		response.Error(w, http.StatusInternalServerError, "Encryption failed", "")
+		return
+	}
+	encLoc, err := security.EncryptString(input.Location)
+	if err != nil {
+		log.Printf("[ERROR] Encryption failed for location: %v", err)
+		response.Error(w, http.StatusInternalServerError, "Encryption failed", "")
+		return
+	}
+
+	log.Printf("[DEBUG] Encrypted Description: %s", encDesc)
+	log.Printf("[DEBUG] Encrypted Location: %s", encLoc)
+
 	newReport := models.Report{
 		ID:                  primitive.NewObjectID(),
 		Title:               input.Title,
-		Description:         input.Description,
+		Description:         encDesc,
 		Category:            input.Category,
-		Location:            input.Location,
+		Location:            encLoc,
 		ImageURL:            input.ImageUrl,
 		IsAnonymous:         isAnon,
 		IsPublic:            isPublic,
@@ -512,7 +529,7 @@ func createReport(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	_, err := db.Collection("reports").InsertOne(ctx, newReport)
+	_, err = db.Collection("reports").InsertOne(ctx, newReport)
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, "Failed to save report", err.Error())
 		return
@@ -592,6 +609,7 @@ func getReports(w http.ResponseWriter, r *http.Request) {
 
 	// Mask anonymous reporters + compute user upvote state
 	reports = maskAnonymousReporter(reports)
+	reports = decryptReports(reports)
 	for i := range reports {
 		computeHasUpvoted(&reports[i], userID)
 	}
@@ -633,6 +651,7 @@ func myReportsHandler(w http.ResponseWriter, r *http.Request) {
 		response.Error(w, http.StatusInternalServerError, "Failed to decode reports", err.Error())
 		return
 	}
+	reports = decryptReports(reports)
 	for i := range reports {
 		computeHasUpvoted(&reports[i], claims.UserID)
 	}
@@ -665,6 +684,7 @@ func getReportByID(w http.ResponseWriter, r *http.Request, id string) {
 
 	// Mask anonymous reporter name
 	maskAnonymousReporterSingle(&report)
+	decryptReport(&report)
 	claims, _ := r.Context().Value(middleware.UserContextKey).(*middleware.UserClaims)
 
 	if !report.IsPublic {
@@ -1141,6 +1161,7 @@ func adminReportsHandler(w http.ResponseWriter, r *http.Request) {
 		response.Error(w, http.StatusInternalServerError, "Failed to decode reports", err.Error())
 		return
 	}
+	reports = decryptReports(reports)
 
 	log.Printf("[OK] Admin fetched %d reports", len(reports))
 	response.Success(w, http.StatusOK, "Reports fetched successfully", reports)
@@ -1380,6 +1401,7 @@ func adminGetReportDetail(w http.ResponseWriter, r *http.Request, id string) {
 		return
 	}
 
+	decryptReport(&report)
 	log.Printf("[OK] Admin fetched report - ID: %s", id)
 	response.Success(w, http.StatusOK, "Report fetched successfully", report)
 }
@@ -2030,7 +2052,10 @@ func uploadImageHandler(w http.ResponseWriter, r *http.Request) {
 		objectName,
 		bytes.NewReader(data),
 		int64(len(data)),
-		minio.PutObjectOptions{ContentType: contentType},
+		minio.PutObjectOptions{
+			ContentType:          contentType,
+			ServerSideEncryption: encrypt.NewSSE(),
+		},
 	)
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, "Failed to upload to object storage", err.Error())
@@ -2178,4 +2203,26 @@ func escalateReportAuto(report models.Report) {
 			log.Printf("[WARN] Failed to publish auto-escalation notification for %s: %v", reportID, err)
 		}
 	}(report.ID.Hex())
+}
+
+func decryptReport(report *models.Report) {
+	if report.Description != "" {
+		decrypted, err := security.DecryptString(report.Description)
+		if err == nil {
+			report.Description = decrypted
+		}
+	}
+	if report.Location != "" {
+		decrypted, err := security.DecryptString(report.Location)
+		if err == nil {
+			report.Location = decrypted
+		}
+	}
+}
+
+func decryptReports(reports []models.Report) []models.Report {
+	for i := range reports {
+		decryptReport(&reports[i])
+	}
+	return reports
 }

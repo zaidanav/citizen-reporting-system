@@ -66,6 +66,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:-minioadmin}
+      MINIO_KMS_SECRET_KEY: my-minio-key:OS1qZDMzODJqZGhra2Rqc2tsYWxrc2pkZmtsamFzZGw=
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
@@ -161,6 +162,8 @@ services:
       - RABBITMQ_PASS=${RABBITMQ_PASS:-lapcw}
 
       - JWT_SECRET=supersecretkey
+
+      - APP_ENCRYPTION_KEY=f12c9cc5bd3e3553b0e798087c6c00cb4fcf56ebb1183739670d8fe1fba69d72
 
       # Forward-to-external integration (manual forwarding)
       - FORWARD_EXTERNAL_URL=http://dispatcher-service:8085/external/forward
