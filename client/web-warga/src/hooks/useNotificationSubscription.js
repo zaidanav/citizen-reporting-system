@@ -13,103 +13,84 @@ export const useNotificationSubscription = () => {
 
   const normalizeStatus = (status) => {
     if (!status) return 'PENDING';
-
-    const normalized = String(status)
-      .trim()
-      .toUpperCase()
-      .replace(/[^A-Z0-9]+/g, '_');
-
-    if (normalized === 'IN_PROGRESS' || normalized === 'INPROGRESS' || normalized === 'PROCESSING' || normalized === 'PROCESSED' || normalized === 'DIPROSES') {
-      return 'IN_PROGRESS';
-    }
-    if (normalized === 'RESOLVED' || normalized === 'COMPLETED' || normalized === 'SELESAI') {
-      return 'RESOLVED';
-    }
-    if (normalized === 'REJECTED' || normalized === 'DITOLAK') {
-      return 'REJECTED';
-    }
-    if (normalized === 'PENDING' || normalized === 'MENUNGGU') {
-      return 'PENDING';
-    }
-
+    const normalized = String(status).trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_');
+    if (['IN_PROGRESS', 'INPROGRESS', 'PROCESSING', 'PROCESSED', 'DIPROSES'].includes(normalized)) return 'IN_PROGRESS';
+    if (['RESOLVED', 'COMPLETED', 'SELESAI'].includes(normalized)) return 'RESOLVED';
+    if (['REJECTED', 'DITOLAK'].includes(normalized)) return 'REJECTED';
     return 'PENDING';
   };
 
-  const connect = useCallback(() => {
-    if (!user || !user.id) {
-      console.log('[Notification] No user, skipping subscription');
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+
+    if (!user || !user.id || !token) {
+      console.log('[Notification] No user or token, skipping subscription');
       return;
     }
 
-    const NOTIFICATION_SERVICE_URL = import.meta.env.VITE_NOTIFICATION_URL || 'http://localhost:8084';
+    const params = new URLSearchParams({
+      user_id: user.id,
+      access_role: 'citizen',
+      token: token
+    });
 
-    console.log('[Notification] Connecting to:', `${NOTIFICATION_SERVICE_URL}/notifications/subscribe?user_id=${user.id}&access_role=citizen`);
+    const url = `/api/notifications/subscribe?${params.toString()}`;
 
-    const eventSource = new EventSource(
-      `${NOTIFICATION_SERVICE_URL}/notifications/subscribe?user_id=${user.id}&access_role=citizen`
-    );
+    console.log('[Notification] Connecting to SSE:', url);
 
-    eventSource.onopen = () => {
-      console.log('[Notification] SSE Connection established');
-    };
+    let eventSource = null;
+    let retryTimeout = null;
 
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
+    const connect = () => {
+      if (eventSource) eventSource.close();
 
-        // Skip connection confirmation message
-        if (data.type === 'connected') {
-          console.log('[Notification] Connected to server');
-          return;
-        }
+      eventSource = new EventSource(url);
 
-        console.log('[Notification] Received event:', data);
+      eventSource.onopen = () => {
+        console.log('[Notification] SSE Connection established ✅');
+      };
 
-        if (data.type === 'status_update') {
-          const reportId = data.report_id || data.reportId || data.id;
-          const status = normalizeStatus(data.status);
-          if (reportId && status) {
-            setLastReportStatusUpdate({ reportId, status });
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          if (data.type === 'connected') return;
+
+          console.log('[Notification] Received event:', data);
+
+          if (data.type === 'status_update') {
+            const reportId = data.report_id || data.reportId || data.id;
+            const status = normalizeStatus(data.status);
+            if (reportId && status) {
+              setLastReportStatusUpdate({ reportId, status });
+            }
           }
+
+          const toastType = data.type === 'status_update' ? 'info' : 'success';
+          addNotification({
+            type: toastType,
+            title: data.title || 'Update Laporan',
+            message: data.message || `Status berubah menjadi: ${data.status}`,
+          });
+        } catch (error) {
+          console.error('[Notification] Failed to parse event:', error);
         }
+      };
 
-        // Map notification type to toast type
-        const toastType = data.type === 'status_update' ? 'info' : 'success';
-
-        addNotification({
-          type: toastType,
-          title: data.title || 'Update Laporan',
-          message: data.message || `Status berubah menjadi: ${data.status}`,
-        });
-      } catch (error) {
-        console.error('[Notification] Failed to parse event:', error);
-      }
+      eventSource.onerror = (error) => {
+        console.error('[Notification] SSE Error ❌', error);
+        eventSource.close();
+        retryTimeout = setTimeout(() => connect(), 5000);
+      };
     };
 
-    eventSource.onerror = (error) => {
-      console.error('[Notification] SSE Error:', error);
-      eventSource.close();
-
-      // Reconnect after 5 seconds
-      setTimeout(() => {
-        console.log('[Notification] Attempting to reconnect...');
-        connect();
-      }, 5000);
-    };
-
-    return eventSource;
-  }, [user, addNotification, setLastReportStatusUpdate]);
-
-  useEffect(() => {
-    const eventSource = connect();
+    connect();
 
     return () => {
-      if (eventSource) {
-        eventSource.close();
-        console.log('[Notification] Disconnected');
-      }
+      if (eventSource) eventSource.close();
+      if (retryTimeout) clearTimeout(retryTimeout);
     };
-  }, [connect]);
+  }, [user, addNotification, setLastReportStatusUpdate]);
 };
 
 export default useNotificationSubscription;

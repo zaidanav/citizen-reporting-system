@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 /**
  * Hook untuk subscribe ke real-time notifications dari server (Dashboard)
@@ -11,71 +11,82 @@ export const useNotificationSubscriptionDashboard = (onNotification) => {
     onNotificationRef.current = onNotification;
   }, [onNotification]);
 
-  const connect = useCallback(() => {
-    const NOTIFICATION_SERVICE_URL = import.meta.env.VITE_NOTIFICATION_URL || 'http://localhost:8084';
+  useEffect(() => {
     const adminUser = JSON.parse(localStorage.getItem('admin_user') || '{}');
-    const userID = adminUser.id;
-    const department = adminUser.department || 'general';
+    const token = localStorage.getItem('admin_token');
 
-    if (!userID) {
-      console.log('[DashboardNotification] No user, skipping subscription');
+    if (!adminUser.id || !token) {
+      console.log('[DashboardNotification] Missing user ID or token, skipping subscription');
       return;
     }
 
-    console.log('[DashboardNotification] Connecting to:', `${NOTIFICATION_SERVICE_URL}/notifications/subscribe?user_id=${userID}&access_role=admin&department=${encodeURIComponent(department)}`);
+    const params = new URLSearchParams({
+      user_id: adminUser.id,
+      access_role: 'admin',
+      department: adminUser.department || 'general',
+      token: token
+    });
 
-    const eventSource = new EventSource(
-      `${NOTIFICATION_SERVICE_URL}/notifications/subscribe?user_id=${userID}&access_role=admin&department=${encodeURIComponent(department)}`
-    );
+    const url = `/api/notifications/subscribe?${params.toString()}`;
 
-    eventSource.onopen = () => {
-      console.log('[DashboardNotification] SSE Connection established');
-    };
+    console.log('[DashboardNotification] Connecting to SSE:', url);
 
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
+    let eventSource = null;
+    let retryTimeout = null;
 
-        // Skip connection confirmation message
-        if (data.type === 'connected') {
-          console.log('[DashboardNotification] Connected to server');
-          return;
-        }
-
-        console.log('[DashboardNotification] Received event:', data);
-
-        if (onNotificationRef.current) {
-          onNotificationRef.current(data);
-        }
-      } catch (error) {
-        console.error('[DashboardNotification] Failed to parse event:', error);
-      }
-    };
-
-    eventSource.onerror = (error) => {
-      console.error('[DashboardNotification] SSE Error:', error);
-      eventSource.close();
-
-      // Reconnect after 5 seconds
-      setTimeout(() => {
-        console.log('[DashboardNotification] Attempting to reconnect...');
-        connect();
-      }, 5000);
-    };
-
-    return eventSource;
-  }, []);
-
-  useEffect(() => {
-    const eventSource = connect();
-
-    return () => {
+    const connect = () => {
       if (eventSource) {
         eventSource.close();
-        console.log('[DashboardNotification] Disconnected');
+      }
+
+      eventSource = new EventSource(url);
+
+      eventSource.onopen = () => {
+        console.log('[DashboardNotification] SSE Connection established ✅');
+      };
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+
+          if (data.type === 'connected') {
+            console.log('[DashboardNotification] Server confirmed connection 📡');
+            return;
+          }
+
+          console.log('[DashboardNotification] New Event:', data);
+
+          if (onNotificationRef.current) {
+            onNotificationRef.current(data);
+          }
+        } catch (error) {
+          console.error('[DashboardNotification] Failed to parse event:', error);
+        }
+      };
+
+      eventSource.onerror = (error) => {
+        console.error('[DashboardNotification] SSE Error ❌', error);
+        eventSource.close();
+
+        retryTimeout = setTimeout(() => {
+          console.log('[DashboardNotification] Attempting to reconnect...');
+          connect();
+        }, 5000);
+      };
+    };
+
+    connect();
+
+    return () => {
+      console.log('[DashboardNotification] Cleaning up subscription...');
+      if (eventSource) {
+        eventSource.close();
+      }
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
       }
     };
-  }, [connect]);
+  }, []);
 };
 
 export default useNotificationSubscriptionDashboard;

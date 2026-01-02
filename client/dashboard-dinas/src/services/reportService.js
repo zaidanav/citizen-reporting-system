@@ -104,7 +104,7 @@ export const reportService = {
   getEscalatedReports: async (filter = 'all') => {
     try {
       const department = getDepartmentFromStorage();
-      const response = await api.get('/admin/reports/escalation', {
+      const response = await api.get('/admin/escalation', {
         params: { filter },
         headers: {
           'X-Department': department,

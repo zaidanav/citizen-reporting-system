@@ -14,14 +14,14 @@ const RETRY_CONFIG = {
 
 // Create separate instances for different services
 const authApi = axios.create({
-  baseURL: 'http://localhost:8081',
+  baseURL: '/api/auth',
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
 const reportApi = axios.create({
-  baseURL: 'http://localhost:8082',
+  baseURL: '/api/reports',
   headers: {
     'Content-Type': 'application/json',
   },

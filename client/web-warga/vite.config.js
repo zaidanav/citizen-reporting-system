@@ -6,19 +6,15 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      '/api/auth': {
-        target: 'http://localhost:8081',
+      '/api': {
+        target: 'https://localhost',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '/api')
-      },
-      '/api/reports': {
-        target: 'http://localhost:8082',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '/api')
+        secure: false,
       },
       '/storage': {
-        target: 'http://localhost:80',
-        changeOrigin: true
+        target: 'https://localhost',
+        changeOrigin: true,
+        secure: false,
       }
     }
   }

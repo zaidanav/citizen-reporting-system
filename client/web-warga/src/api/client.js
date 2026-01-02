@@ -105,9 +105,10 @@ api.interceptors.response.use(
 
     // Handle 401 - auth error, no retry
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+      console.error("[API] 401 Unauthorized detected");
+      // localStorage.removeItem('token');
+      // localStorage.removeItem('user');
+      // window.location.href = '/login';
       return Promise.reject(error);
     }
 

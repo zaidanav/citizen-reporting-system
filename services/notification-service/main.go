@@ -177,26 +177,29 @@ func main() {
 	go handleClients()
 
 	// Create HTTP multiplexer
-	mux := http.NewServeMux()
-	mux.HandleFunc("/notifications/subscribe", subscribeHandler)
-	mux.HandleFunc("/health", healthHandler)
-	mux.Handle("/metrics", middleware.GetMetricsHandler())
+	apiMux := http.NewServeMux()
+	apiMux.HandleFunc("/health", healthHandler)
+	apiMux.Handle("/metrics", middleware.GetMetricsHandler())
+
+	apiHandler := middleware.TraceMiddleware(
+		middleware.MetricsMiddleware(
+			middleware.LoggerMiddleware(apiMux),
+		),
+	)
+
+	rootMux := http.NewServeMux()
+	rootMux.Handle("/notifications/subscribe", middleware.TraceMiddleware(http.HandlerFunc(subscribeHandler)))
+	rootMux.Handle("/subscribe", middleware.TraceMiddleware(http.HandlerFunc(subscribeHandler)))
+	rootMux.Handle("/", apiHandler)
 
 	port := os.Getenv("NOTIFICATION_PORT")
 	if port == "" {
 		port = "8084"
 	}
 
-	// Apply middleware chain
-	handler := middleware.TraceMiddleware(
-		middleware.MetricsMiddleware(
-			middleware.LoggerMiddleware(mux),
-		),
-	)
-
 	log.Printf("[INFO] Notification Service running on port :%s", port)
 	log.Println("[INFO] Distributed tracing enabled (X-Trace-Id)")
-	if err := http.ListenAndServe(":"+port, handler); err != nil {
+	if err := http.ListenAndServe(":"+port, rootMux); err != nil {
 		log.Fatalf("[ERROR] Server failed: %v", err)
 	}
 }

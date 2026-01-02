@@ -263,13 +263,17 @@ func main() {
 		return middleware.AuthMiddleware(middleware.RequireRole("admin", "super-admin")(h))
 	}
 	// Register specific routes BEFORE generic ones to prevent premature matching
-	mux.Handle("/admin/reports/escalation", adminChain(http.HandlerFunc(adminEscalationHandler)))
-	mux.Handle("/admin/reports/escalate/", adminChain(http.HandlerFunc(adminEscalateReportHandler)))
-	mux.Handle("/admin/reports/forward/", adminChain(http.HandlerFunc(adminForwardReportHandler)))
-	mux.Handle("/admin/analytics", adminChain(http.HandlerFunc(adminAnalyticsHandler)))
-	mux.Handle("/admin/performance", adminChain(http.HandlerFunc(adminPerformanceHandler)))
-	mux.Handle("/admin/reports", adminChain(http.HandlerFunc(adminReportsHandler)))
-	mux.Handle("/admin/reports/", adminChain(http.HandlerFunc(adminReportDetailHandler)))
+	mux.Handle("/api/reports/admin/escalation", adminChain(http.HandlerFunc(adminEscalationHandler)))
+	mux.Handle("/api/reports/admin/reports/escalate/", adminChain(http.HandlerFunc(adminEscalateReportHandler)))
+	mux.Handle("/api/reports/admin/reports/forward/", adminChain(http.HandlerFunc(adminForwardReportHandler)))
+	mux.Handle("/api/reports/admin/analytics", adminChain(http.HandlerFunc(adminAnalyticsHandler)))
+	mux.Handle("/api/reports/admin/performance", adminChain(http.HandlerFunc(adminPerformanceHandler)))
+
+	// Route List Admin
+	mux.Handle("/api/reports/admin/reports", adminChain(http.HandlerFunc(adminReportsHandler)))
+	
+	// Route Detail Admin
+	mux.Handle("/api/reports/admin/reports/", adminChain(http.HandlerFunc(adminReportDetailHandler)))
 
 	go startAutoEscalationWorker()
 
@@ -1371,7 +1375,7 @@ func adminAnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 
 // Admin endpoint - Get single report by ID
 func adminReportDetailHandler(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Path[len("/admin/reports/"):]
+	id := r.URL.Path[len("/api/reports/admin/reports/"):]
 	if id == "" {
 		response.Error(w, http.StatusBadRequest, "Missing report ID", "")
 		return
@@ -1477,7 +1481,7 @@ func adminUpdateReportStatus(w http.ResponseWriter, r *http.Request, id string) 
 
 // Admin forward report to external system
 func adminForwardReportHandler(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Path[len("/admin/reports/forward/"):]
+	id := r.URL.Path[len("/api/reports/admin/reports/forward/"):]
 	if id == "" {
 		response.Error(w, http.StatusBadRequest, "Missing report ID", "")
 		return
@@ -1746,7 +1750,7 @@ func adminEscalateReportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := r.URL.Path[len("/admin/reports/escalate/"):]
+	id := r.URL.Path[len("/api/reports/admin/reports/escalate/"):]
 	if id == "" {
 		response.Error(w, http.StatusBadRequest, "Missing report ID", "")
 		return
