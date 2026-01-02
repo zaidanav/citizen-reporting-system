@@ -78,18 +78,25 @@ func main() {
 	}
 	log.Println("✅ Migration success!")
 
-	http.HandleFunc("/api/auth/register", middleware.LoggerMiddleware(http.HandlerFunc(registerHandler)).ServeHTTP)
-	http.HandleFunc("/api/auth/login", middleware.LoggerMiddleware(http.HandlerFunc(loginHandler)).ServeHTTP)
+	middleware.RegisterMetrics()
+	log.Println("📊 Prometheus metrics initialized")
+	mux := http.NewServeMux()
 
-	http.HandleFunc("/api/auth/me", middleware.LoggerMiddleware(middleware.AuthMiddleware(http.HandlerFunc(meHandler))).ServeHTTP)
-
-	// Health check and metrics
-	http.HandleFunc("/health", healthCheckHandler)
-	http.HandleFunc("/metrics", metricsHandler)
+	mux.HandleFunc("/api/auth/register", registerHandler)
+	mux.HandleFunc("/api/auth/login", loginHandler)
+	mux.HandleFunc("/api/auth/me", middleware.AuthMiddleware(http.HandlerFunc(meHandler)).ServeHTTP)
+	mux.HandleFunc("/health", healthCheckHandler)
+	mux.Handle("/metrics", middleware.GetMetricsHandler())
+	handler := middleware.TraceMiddleware(
+		middleware.MetricsMiddleware(
+			middleware.LoggerMiddleware(mux),
+		),
+	)
 
 	port := ":8081"
 	log.Printf("🚀 Auth Service running on port %s", port)
-	if err := http.ListenAndServe(port, nil); err != nil {
+	log.Println("🔍 Distributed tracing enabled (X-Trace-Id)")
+	if err := http.ListenAndServe(port, handler); err != nil {
 		log.Fatalf("❌ Server failed: %v", err)
 	}
 }

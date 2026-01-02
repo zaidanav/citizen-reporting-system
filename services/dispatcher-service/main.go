@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"citizen-reporting-system/pkg/middleware"
 	"citizen-reporting-system/pkg/queue"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -42,6 +43,9 @@ func main() {
 	if httpPort == "" {
 		httpPort = "8085"
 	}
+
+	middleware.RegisterMetrics()
+	log.Println("Prometheus metrics initialized")
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -101,10 +105,21 @@ func main() {
 		})
 	})
 
+	// Add metrics endpoint
+	mux.Handle("/metrics", middleware.GetMetricsHandler())
+
+	// Apply middleware chain
+	handler := middleware.TraceMiddleware(
+		middleware.MetricsMiddleware(
+			middleware.LoggerMiddleware(mux),
+		),
+	)
+
 	go func() {
 		addr := ":" + httpPort
 		log.Printf("✅ Dispatcher HTTP Receiver running on %s", addr)
-		if err := http.ListenAndServe(addr, mux); err != nil {
+		log.Println("🔍 Distributed tracing enabled (X-Trace-Id)")
+		if err := http.ListenAndServe(addr, handler); err != nil {
 			log.Printf("⚠️ Dispatcher HTTP server stopped: %v", err)
 		}
 	}()

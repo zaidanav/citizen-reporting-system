@@ -167,24 +167,36 @@ func main() {
 
 	log.Println("[INFO] Listening to notifications queue")
 
+	middleware.RegisterMetrics()
+	log.Println("[INFO] Prometheus metrics initialized")
+
 	// Goroutine: Consume messages from RabbitMQ
 	go consumeMessages(ch, queue.Name)
 
 	// Goroutine: Handle client connections & broadcasting
 	go handleClients()
 
-	// HTTP Server
-	http.HandleFunc("/notifications/subscribe", subscribeHandler)
-	http.HandleFunc("/health", healthHandler)
-	http.HandleFunc("/metrics", metricsHandler)
+	// Create HTTP multiplexer
+	mux := http.NewServeMux()
+	mux.HandleFunc("/notifications/subscribe", subscribeHandler)
+	mux.HandleFunc("/health", healthHandler)
+	mux.Handle("/metrics", middleware.GetMetricsHandler())
 
 	port := os.Getenv("NOTIFICATION_PORT")
 	if port == "" {
 		port = "8084"
 	}
 
+	// Apply middleware chain
+	handler := middleware.TraceMiddleware(
+		middleware.MetricsMiddleware(
+			middleware.LoggerMiddleware(mux),
+		),
+	)
+
 	log.Printf("[INFO] Notification Service running on port :%s", port)
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
+	log.Println("[INFO] Distributed tracing enabled (X-Trace-Id)")
+	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatalf("[ERROR] Server failed: %v", err)
 	}
 }

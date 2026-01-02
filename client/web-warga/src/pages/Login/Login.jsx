@@ -42,8 +42,8 @@ const Login = () => {
     
     if (!formData.password) {
       newErrors.password = 'Password wajib diisi';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Password minimal 6 karakter';
+    } else if (formData.password.length < 8) {
+      newErrors.password = 'Password minimal 8 karakter';
     }
     
     if (isRegister) {
@@ -176,7 +176,7 @@ const Login = () => {
               name="password"
               value={formData.password}
               onChange={handleChange}
-              placeholder="Minimal 6 karakter"
+              placeholder="Minimal 8 karakter"
               error={errors.password}
               required
             />

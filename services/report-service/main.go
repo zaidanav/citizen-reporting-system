@@ -229,37 +229,38 @@ func main() {
 	defer policyCancel()
 	ensureMinioBucketPublicRead(policyCtx, minioClient, minioBucket)
 
+	middleware.RegisterMetrics()
+	log.Println("[INFO] Prometheus metrics initialized")
+
 	// Create mux and register routes
 	mux := http.NewServeMux()
 
 	// Setup HTTP routes
 	// Register specific routes BEFORE generic ones to prevent premature matching
-	mux.Handle("/api/reports/mine", middleware.LoggerMiddleware(middleware.AuthMiddleware(http.HandlerFunc(myReportsHandler))))
-	mux.Handle("/api/reports/upload", middleware.LoggerMiddleware(middleware.AuthMiddleware(http.HandlerFunc(uploadImageHandler))))
+	mux.HandleFunc("/api/reports/mine", middleware.AuthMiddleware(http.HandlerFunc(myReportsHandler)).ServeHTTP)
+	mux.HandleFunc("/api/reports/upload", middleware.AuthMiddleware(http.HandlerFunc(uploadImageHandler)).ServeHTTP)
 
 	// GET /api/reports is public (no auth required, but can use token for upvote status)
-	mux.Handle("/api/reports", middleware.LoggerMiddleware(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodGet {
-				middleware.OptionalAuthMiddleware(http.HandlerFunc(reportsHandler)).ServeHTTP(w, r)
-			} else {
-				// POST requires auth
-				middleware.AuthMiddleware(http.HandlerFunc(reportsHandler)).ServeHTTP(w, r)
-			}
-		}),
-	))
+	mux.HandleFunc("/api/reports", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			middleware.OptionalAuthMiddleware(http.HandlerFunc(reportsHandler)).ServeHTTP(w, r)
+		} else {
+			// POST requires auth
+			middleware.AuthMiddleware(http.HandlerFunc(reportsHandler)).ServeHTTP(w, r)
+		}
+	})
 
 	// Generic route for report detail (with ID)
-	mux.Handle("/api/reports/", middleware.LoggerMiddleware(middleware.AuthMiddleware(http.HandlerFunc(reportDetailHandler))))
-	mux.Handle("/internal/updates", middleware.LoggerMiddleware(http.HandlerFunc(internalUpdateStatusHandler)))
+	mux.HandleFunc("/api/reports/", middleware.AuthMiddleware(http.HandlerFunc(reportDetailHandler)).ServeHTTP)
+	mux.HandleFunc("/internal/updates", internalUpdateStatusHandler)
 
-	// Health check and metrics endpoints
+	// Health check and Prometheus metrics
 	mux.HandleFunc("/health", healthCheckHandler)
-	mux.HandleFunc("/metrics", metricsHandler)
+	mux.Handle("/metrics", middleware.GetMetricsHandler())
 
 	// Admin endpoints (JWT required + role-based access)
 	adminChain := func(h http.Handler) http.Handler {
-		return middleware.LoggerMiddleware(middleware.AuthMiddleware(middleware.RequireRole("admin", "super-admin")(h)))
+		return middleware.AuthMiddleware(middleware.RequireRole("admin", "super-admin")(h))
 	}
 	// Register specific routes BEFORE generic ones to prevent premature matching
 	mux.Handle("/admin/reports/escalation", adminChain(http.HandlerFunc(adminEscalationHandler)))
@@ -274,9 +275,15 @@ func main() {
 
 	port := ":8082"
 	log.Printf("[INFO] Report Service running on port %s", port)
+	log.Println("[INFO] Distributed tracing enabled (X-Trace-Id)")
 
-	// Wrap with CORS middleware
-	handler := middleware.CORSMiddleware(mux)
+	handler := middleware.TraceMiddleware(
+		middleware.MetricsMiddleware(
+			middleware.LoggerMiddleware(
+				middleware.CORSMiddleware(mux),
+			),
+		),
+	)
 
 	if err := http.ListenAndServe(port, handler); err != nil {
 		log.Fatalf("[ERROR] Server failed: %v", err)
