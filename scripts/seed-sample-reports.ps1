@@ -1,6 +1,3 @@
-# Script untuk seed sample reports (MongoDB)
-# Run: .\seed-sample-reports.ps1
-
 $mongoUser = $env:MONGO_USER; if (-not $mongoUser) { $mongoUser = "admin" }
 $mongoPass = $env:MONGO_PASSWORD; if (-not $mongoPass) { $mongoPass = "password" }
 

@@ -1,9 +1,12 @@
 param(
     [Parameter(Position=0)]
-    [string]$Task = "help"
+    [string]$Task = "help",
+
+    [Parameter(Position=1)]
+    [string]$Target = ""
 )
 
-$script:ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$script:ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 
 Write-Host "Running Task: $Task" -ForegroundColor Cyan
 
@@ -46,28 +49,64 @@ switch ($Task) {
         docker-compose down
         Write-Host "All services stopped." -ForegroundColor Green
     }
-    
-    "help" {
-        Write-Host "Citizen Reporting System - Runner Script" -ForegroundColor Cyan
-        Write-Host "Available commands:" -ForegroundColor Yellow
-        Write-Host ""
-        Write-Host "Setup (First Time):" -ForegroundColor Cyan
-        Write-Host "  build        - Build Docker images for backend services" -ForegroundColor White
-        Write-Host ""
-        Write-Host "Start/Stop Services:" -ForegroundColor Cyan
-        Write-Host "  up           - Start all backend services (infrastructure + backend)" -ForegroundColor White
-        Write-Host "  down         - Stop all Docker services" -ForegroundColor White
-        Write-Host "  frontend     - Start frontend development servers" -ForegroundColor White
-        Write-Host "  status       - Check Docker container status" -ForegroundColor White
-        Write-Host ""
-        Write-Host "Usage Example:" -ForegroundColor Yellow
-        Write-Host "  .\runner.ps1 build      # First time only" -ForegroundColor Gray
-        Write-Host "  .\runner.ps1 up         # Start backend" -ForegroundColor Gray
-        Write-Host "  .\runner.ps1 frontend   # Start frontend (new terminal)" -ForegroundColor Gray
-        Write-Host "  .\runner.ps1 down       # Stop all" -ForegroundColor Gray
+
+    "restart" {
+        Write-Host "🔄 Restarting system..." -ForegroundColor Yellow
+        docker-compose down
+        docker-compose up -d --remove-orphans
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "`n✅ System Restarted!" -ForegroundColor Green
+            Write-Host "`nService URLs:" -ForegroundColor Yellow
+            Write-Host "  Auth Service: http://localhost:8081" -ForegroundColor White
+            Write-Host "  Report Service: http://localhost:8082" -ForegroundColor White
+            Write-Host "  Grafana: http://localhost:3002" -ForegroundColor White
+            Write-Host "  RabbitMQ: http://localhost:15672" -ForegroundColor White
+        }
     }
 
+    "logs" {
+        Write-Host "📋 Tailing logs (Press Ctrl+C to exit)..." -ForegroundColor Cyan
+        docker-compose logs -f
+    }
+
+    "shell" {
+        if ([string]::IsNullOrEmpty($Target)) {
+            Write-Host "❌ Specify a target! Usage: .\runner.ps1 shell [mongo|db|mq|minio|grafana]" -ForegroundColor Red
+            return
+        }
+
+        switch ($Target) {
+            "mongo"   { docker exec -it lapcw-mongo mongosh -u admin -p password }
+            "db"      { docker exec -it lapcw-postgres psql -U admin -d auth_db }
+            "postgres"{ docker exec -it lapcw-postgres psql -U admin -d auth_db }
+            "mq"      { docker exec -it lapcw-rabbitmq sh }
+            "rabbit"  { docker exec -it lapcw-rabbitmq sh }
+            "minio"   { docker exec -it lapcw-minio sh }
+            "grafana" { docker exec -it lapcw-grafana bash }
+            Default   { Write-Host "❌ Unknown target '$Target'. Available: mongo, db, mq, minio, grafana" -ForegroundColor Red }
+        }
+    }
+
+    "init-storage" {
+        Write-Host "🗄️  Initializing MinIO Storage..." -ForegroundColor Cyan
+        Start-Sleep -Seconds 2
+        # Set Alias & Buat Bucket
+        docker exec lapcw-minio mc alias set myminio http://localhost:9000 minioadmin minioadmin
+        docker exec lapcw-minio mc mb myminio/citizen-reports --ignore-existing
+        docker exec lapcw-minio mc anonymous set public myminio/citizen-reports
+        Write-Host "✅ Storage bucket 'citizen-reports' is ready and public!" -ForegroundColor Green
+    }
     
+    "seed" {
+        Write-Host "🌱 Seeding Sample Data..." -ForegroundColor Cyan
+        if (Test-Path "seed-sample-reports.ps1") {
+            .\seed-sample-reports.ps1
+        } else {
+            Write-Host "⚠️ Seed script 'seed-sample-reports.ps1' not found." -ForegroundColor Yellow
+        }
+    }
+
     "frontend" {
         Write-Host "Starting frontend development servers..." -ForegroundColor Cyan
         Write-Host "Make sure backend is running: .\runner.ps1 up" -ForegroundColor Yellow
@@ -123,6 +162,27 @@ switch ($Task) {
     "status" {
         Write-Host "Docker Services Status:" -ForegroundColor Cyan
         docker-compose ps
+    }
+
+    "help" {
+        Write-Host "Citizen Reporting System - Runner Script" -ForegroundColor Cyan
+        Write-Host "Available commands:" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "Setup (First Time):" -ForegroundColor Cyan
+        Write-Host "  build        - Build Docker images for backend services" -ForegroundColor White
+        Write-Host "  init-storage - Create MinIO buckets" -ForegroundColor White
+        Write-Host "  seed         - Populate sample data" -ForegroundColor White
+        Write-Host ""
+        Write-Host "Start/Stop Services:" -ForegroundColor Cyan
+        Write-Host "  up           - Start all backend services" -ForegroundColor White
+        Write-Host "  down         - Stop all Docker services" -ForegroundColor White
+        Write-Host "  restart      - Restart all services (Down + Up)" -ForegroundColor White
+        Write-Host "  frontend     - Start frontend servers" -ForegroundColor White
+        Write-Host "  status       - Check Docker container status" -ForegroundColor White
+        Write-Host "  logs         - View real-time logs" -ForegroundColor White
+        Write-Host ""
+        Write-Host "Shortcuts:" -ForegroundColor Cyan
+        Write-Host "  shell [db|mongo|mq] - Enter container terminal" -ForegroundColor White
     }
     
     Default {

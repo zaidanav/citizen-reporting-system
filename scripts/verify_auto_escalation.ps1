@@ -1,6 +1,4 @@
-# verify_auto_escalation.ps1
 # Script to verify Automatic Escalation (SLA Breach)
-
 # URL and Credentials
 $AuthUrl = "http://localhost:8081"
 $ReportUrl = "http://localhost:8082"

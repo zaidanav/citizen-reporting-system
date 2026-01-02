@@ -1,180 +1,137 @@
 # Secure & Scalable Citizen Report System 🛡️
-**Major Assignment IF4031 - Distributed Application Development**
+**Tugas Besar IF4031 - Arsitektur Aplikasi Terdistribusi**
 
-This repository contains a Proof of Concept (PoC) implementation for a citizen reporting system based on **Microservices Architecture**. The system is designed to handle high concurrency, maintain reporter anonymity, and provide real-time monitoring to relevant agencies.
+![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Go Version](https://img.shields.io/badge/go-1.21-cyan) ![Architecture](https://img.shields.io/badge/architecture-microservices-orange)
+
+## 📖 Project Overview
+
+This repository contains a Proof of Concept (PoC) implementation for a **Citizen Reporting System** built on a **Microservices Architecture**. The system is designed to allow citizens to report infrastructure or public issues securely and anonymously, while enabling government agencies to respond efficiently.
+
+The system addresses key challenges in distributed applications: **High Concurrency**, **Data Privacy (Encryption)**, **Fault Tolerance**, and **Real-time Observability**.
+
+### Key Features
+* **Microservices Architecture:** Decoupled services (Auth, Report, Dispatcher, Notification) for independent scaling.
+* **Event-Driven Design:** Uses **RabbitMQ** for asynchronous communication between services (e.g., dispatching reports to agencies).
+* **End-to-End Privacy:** Critical data (reporter identity and description) is encrypted using **AES-256**.
+* **Real-Time Updates:** Uses **Server-Sent Events (SSE)** to push status updates to the dashboard instantly.
+* **Full Observability:** Integrated **Prometheus** & **Grafana** for monitoring metrics and **Distributed Tracing**.
+* **Secure Gateway:** **Nginx** acts as the single entry point with Rate Limiting and SSL termination.
+
+---
+
+## 🏗️ Architecture & Tech Stack
+
+The system is organized as a Monorepo using a clean separation of concerns:
+
+| Component | Technology | Description |
+| :--- | :--- | :--- |
+| **Language** | **Go (Golang)** | High-performance backend services. |
+| **Gateway** | **Nginx** | Reverse Proxy, Rate Limiter, and SSL Termination. |
+| **Message Broker** | **RabbitMQ** | Asynchronous event bus for decoupling services. |
+| **Databases** | **PostgreSQL** & **MongoDB** | Polyglot persistence (Relational for Auth, NoSQL for Reports). |
+| **Storage** | **MinIO** | S3-compatible object storage for evidence photos. |
+| **Monitoring** | **Prometheus** & **Grafana** | Real-time metrics visualization and alerting. |
+| **Frontend** | **React (Vite)** | Responsive web apps for Citizens and Admin Dashboard. |
+
+---
+
+## 📂 Directory Structure
+
+```text
+citizen-reporting-system/
+├── scripts/                # Automation & Utility Scripts (Runner, Seeding)
+├── infra/                  # Infrastructure as Code (Nginx, Prometheus, Grafana)
+├── services/               # Backend Microservices
+│   ├── auth-service/       # JWT Management & RBAC
+│   ├── report-service/     # Report CRUD & Encryption
+│   ├── dispatcher-service/ # Worker for Routing Logic & SLA
+│   └── notification-service/ # Real-time SSE Push
+├── client/                 # Frontend Applications
+│   ├── web-warga/          # Public reporting portal
+│   └── dashboard-dinas/    # Agency management dashboard
+└── pkg/                    # Shared Go Libraries (Database, Queue, Logger)
+
+```
+
+---
+
+## ⚡ Automation Scripts
+
+To simplify development and deployment, we provide a set of PowerShell scripts located in the `scripts/` directory.
+
+| Script | Description |
+| --- | --- |
+| **`runner.ps1`** | **The Main Controller.** Handles building, starting (up), stopping (down), and monitoring the entire stack. |
+| **`create-admin.ps1`** | Automates the creation of Admin accounts (Operational, Strategic, Super Admin) directly into the database. |
+| **`seed-sample-reports.ps1`** | Populates the database with dummy citizen reports for testing dashboards and analytics. |
 
 ---
 
 ## 🚀 Quick Start
 
-### Prerequisites
-- Docker Desktop
-- Node.js 18+ (untuk frontend)
-- PowerShell 5.1+
+This project requires **Docker Desktop**, **Node.js 18+**, and **PowerShell**.
 
-### Langkah 1: Build Backend Services (First Time Only)
+> **⚠️ IMPORTANT:** All commands should be run from the **Root Project Directory**.
+
+### 1. Build Backend (First Time Only)
+
+Compile all Go services and build Docker images.
+
 ```powershell
-# Build Docker images untuk semua backend services
-.\runner.ps1 build
+.\scripts\runner.ps1 build
+
 ```
 
-### Langkah 2: Start Backend Services (Infrastructure + Backend)
+### 2. Start Infrastructure & Backend
+
+Spins up Databases, RabbitMQ, MinIO, and all Microservices.
+
 ```powershell
-# Start semua services di Docker
-.\runner.ps1 up
+.\scripts\runner.ps1 up
+
 ```
 
-### Langkah 3: Start Frontend Applications
+### 3. Start Frontend Applications
+
+Starts the Citizen Web and Admin Dashboard in development mode.
+
 ```powershell
-# Install dependencies (first time only)
-cd client/web-warga && npm install && cd ../..
-cd client/dashboard-dinas && npm install && cd ../..
+.\scripts\runner.ps1 frontend
 
-# Run frontend development servers
-.\runner.ps1 frontend
 ```
 
-**Access the system:**
-- 🌐 **Web Warga (Citizen):** http://localhost:3000
-- 👔 **Dashboard Dinas (Admin):** http://localhost:3001
-- 🔐 **Auth Service:** http://localhost:8081
-- 📝 **Report Service:** http://localhost:8082
-- 🔔 **Notification Service:** http://localhost:8084
-- 🐰 **RabbitMQ Console:** http://localhost:15672 (guest/guest)
-- 🗄️ **MinIO Console:** http://localhost:9001 (minioadmin/minioadmin)
-- 📊 **Grafana Dashboard:** http://localhost:3002 (admin/admin)
+### 4. Setup Data (Optional)
 
-**Stop services:**
+Initialize storage buckets and create admin users for testing.
+
 ```powershell
-# Stop frontend (Ctrl+C di terminal frontend)
-# Stop backend dan infrastructure
-.\runner.ps1 down
+.\scripts\runner.ps1 init-storage
+.\scripts\create-admin.ps1
+
 ```
 
-📖 **Full documentation:** [RUNNER_GUIDE.md](./RUNNER_GUIDE.md)
+### 🛑 Stop Services
 
----
+```powershell
+.\scripts\runner.ps1 down
 
-## 🏗️ Structure & Development Zones
-
-This project uses a **Monorepo** approach. Code is separated based on functional responsibilities (Zones) to facilitate team collaboration without configuration conflicts.
-
-### 📂 Directory Map
-
-```text
-citizen-reporting-system/
-├── infra/                  # [INFRASTRUCTURE ZONE]
-│   ├── nginx/              # API Gateway & Routing Configuration
-│   ├── prometheus/         # Monitoring & Alerting Configuration
-│   ├── grafana/            # Metric Visualization Dashboard
-│   └── db-init/            # Database initialization scripts (SQL seed)
-│
-├── services/               # [BACKEND MICROSERVICES ZONE]
-│   ├── auth-service/       # Authentication Service & Token Management
-│   ├── report-service/     # Main Service (Report CRUD)
-│   ├── dispatcher-service/ # Routing Service & Agency Business Logic
-│   └── notification-service/ # Real-time Service (WebSocket/SSE)
-│
-├── client/                 # [FRONTEND ZONE]
-│   ├── web-warga/          # Web Application for Citizens
-│   └── dashboard-dinas/    # Monitoring Dashboard for Officers
-│
-├── pkg/                    # [SHARED LIBRARIES]
-│   ├── database/           # DB Connection Helpers (Postgres/Mongo)
-│   ├── queue/              # Message Broker Connection Helpers (RabbitMQ)
-│   └── response/           # JSON Response Standardization
-│
-├── docker-compose.yml      # Orchestration of all infrastructure containers
-├── README.md               # Project Documentation
-└── runner.ps1              # Task Runner (Project management script)
 ```
 
----
+### 🔗 Service Access Points
 
-## 🛠️ Division of Responsibilities (Roles)
-
-To ensure development runs in parallel and efficiently, each directory has a primary "owner":
-
-### 1. The Orchestrator (Infrastructure Zone)
-
-* **Domain:** `infra/`, `docker-compose.yml`, `runner.ps1`
-* **Focus:** Preparing the "ground" where the application runs. Managing Nginx (Gateway), Message Broker (RabbitMQ), Database, and Monitoring (Prometheus/Grafana). Ensuring all containers can communicate with each other.
-
-### 2. Backend Core Engineer (Services Zone)
-
-* **Domain:** `services/` (Auth & Report), `pkg/`
-* **Focus:** Developing core business logic. Handling data validation, security, data storage to Database, and sending messages to the Queue.
-
-### 3. Frontend & Integration Engineer (Client Zone)
-
-* **Domain:** `client/`, `services/` (Notification)
-* **Focus:** Building user interfaces (UI/UX) for citizens and agencies. Integrating backend APIs into the frontend and handling real-time updates (Notifications).
-
----
-
-## 🔌 Integration
-
-Configurations to connect services and frontend applications.
-
-### 1. Connection Strings
-Note:
-- Internal Host: When connecting from inside a Docker container (Go Code).
-- External Host: When connecting from laptop (DBeaver, MongoDB Compass, etc.).
-
-| Service | Internal Host (Code) | External Host (Tools) | Port (Int/Ext) | User / Pass | Connection URL Example (Internal) |
-| --- | --- | --- | --- | --- | --- |
-| **Postgres** | `lapcw-postgres` | `localhost` | **5432** / **5434** | `admin` / `password` | `postgres://admin:password@lapcw-postgres:5432/auth_db` |
-| **MongoDB** | `lapcw-mongo` | `localhost` | **27017** / **27017** | `admin` / `password` | `mongodb://admin:password@lapcw-mongo:27017` |
-| **RabbitMQ** | `lapcw-rabbitmq` | `localhost` | **5672** / **5672** | `guest` / `guest` | `amqp://guest:guest@lapcw-rabbitmq:5672/` |
-| **MinIO** | `lapcw-minio` | `localhost` | **9000** / **9000** | `minioadmin`/`minioadmin` | *Use AWS S3 SDK* |
-
-> **Tip:** Use the helper functions in `pkg/database` and `pkg/queue` to connect easily.
-
-### 2. API Gateway Routes (Frontend)
-
-Frontend applications (Web Warga & Dashboard Dinas) must **ONLY** access the backend via the API Gateway (Nginx).
-
-* **Base URL:** `http://localhost` (Port 80)
-* **Security:** Rate Limiting is active (10 requests/second per IP).
-
-| Path Prefix | Target Service | Purpose |
+| Application | URL | Credentials (Default) |
 | --- | --- | --- |
-| `/api/auth/*` | Auth Service | Login, Register, Token Refresh |
-| `/api/reports/*` | Report Service | Create, Read, Update Reports |
-| `/storage/*` | MinIO Storage | Load uploaded images (Public Read) |
-
-### 3. Event Contract (RabbitMQ)
-
-When a new report is created, **Report Service** must publish a JSON message to `report_queue` with this exact structure:
-
-```json
-{
-  "id": "UUID-V4",
-  "title": "Judul Laporan",
-  "category": "Sampah/Jalan/Keamanan",
-  "is_anonymous": true,
-  "reporter_id": "User-ID-123",
-  "reporter_name": "Nama Pelapor",
-  "description": "Deskripsi lengkap...",
-  "created_at": "2025-12-28T10:00:00Z"
-}
-
-```
+| **Web Warga** | http://localhost:3000 | Register via App |
+| **Dashboard Dinas** | http://localhost:3001 | Use `create-admin.ps1` |
+| **API Gateway** | http://localhost:8081 | - |
+| **RabbitMQ Console** | http://localhost:15672 | `guest` / `guest` |
+| **Grafana** | http://localhost:3002 | `admin` / `admin` |
+| **MinIO Console** | http://localhost:9001 | `minioadmin` / `minioadmin` |
 
 ---
 
-## 💻 Tech Stack
+## 📚 Documentation & Guide
 
-* **Language:** Go (Golang)
-* **Gateway:** Nginx (Reverse Proxy & Rate Limiter)
-* **Message Broker:** RabbitMQ
-* **Database:** PostgreSQL (Relational), MongoDB (NoSQL)
-* **Storage:** MinIO (S3 Compatible - Object Storage)
-* **Monitoring:** Prometheus & Grafana
+For a complete list of commands, troubleshooting steps, and advanced usage (like accessing database shells), please refer to the detailed guide:
 
----
-
-## 📝 Development Notes
-
-* **Shared Packages:** If creating common functions (e.g., RabbitMQ connection), place them in the `pkg/` folder so they can be used by the *Report Service* and *Dispatcher Service* without code duplication.
-* **Environment Variables:** Never upload `.env` files to Git. Use `.env.example` as a reference.
+👉 **[Read the RUNNER_GUIDE.md](./scripts/RUNNER_GUIDE.md)**
