@@ -1474,7 +1474,7 @@ func adminForwardReportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	objID, err := primitive.ObjectIDFromHex(id)
@@ -1499,27 +1499,118 @@ func adminForwardReportHandler(w http.ResponseWriter, r *http.Request) {
 	if claims, ok := r.Context().Value(middleware.UserContextKey).(*middleware.UserClaims); ok {
 		department = claims.Department
 	}
+	if strings.TrimSpace(department) == "" {
+		department = "general"
+	}
 
-	// Record forwarding in database
+	externalURL := strings.TrimSpace(os.Getenv("FORWARD_EXTERNAL_URL"))
+	if externalURL == "" {
+		// Default for docker-compose internal network.
+		externalURL = "http://dispatcher-service:8085/external/forward"
+	}
+
+	forwardedAt := time.Now()
+
+	// Create an audit record first, then attempt the external call.
 	forwardRecord := bson.M{
 		"report_id":    objID,
 		"forward_to":   input.ForwardTo,
 		"forwarded_by": department,
 		"notes":        input.Notes,
-		"forwarded_at": time.Now(),
+		"forwarded_at": forwardedAt,
+		"status":       "PENDING",
+		"external_url": externalURL,
+		"attempted_at": forwardedAt,
 	}
 
-	_, err = db.Collection("forwarded_reports").InsertOne(ctx, forwardRecord)
+	insertRes, err := db.Collection("forwarded_reports").InsertOne(ctx, forwardRecord)
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, "Failed to forward report", err.Error())
 		return
 	}
+	forwardRecordID := insertRes.InsertedID
+
+	// Build payload for external system.
+	externalPayload := map[string]interface{}{
+		"forwardTo":   input.ForwardTo,
+		"notes":       input.Notes,
+		"forwardedBy": department,
+		"forwardedAt": forwardedAt,
+		"report": map[string]interface{}{
+			"id":            report.ID.Hex(),
+			"title":         report.Title,
+			"description":   report.Description,
+			"category":      report.Category,
+			"is_anonymous":  report.IsAnonymous,
+			"reporter_id":   report.ReporterID,
+			"reporter_name": report.Reporter,
+			"created_at":    report.CreatedAt,
+		},
+	}
+
+	jsonPayload, err := json.Marshal(externalPayload)
+	if err != nil {
+		_, _ = db.Collection("forwarded_reports").UpdateOne(ctx, bson.M{"_id": forwardRecordID}, bson.M{"$set": bson.M{
+			"status":         "FAILED",
+			"completed_at":   time.Now(),
+			"external_error": "failed to marshal external payload",
+		}})
+		response.Error(w, http.StatusInternalServerError, "Failed to forward report", "Failed to prepare external payload")
+		return
+	}
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, externalURL, bytes.NewBuffer(jsonPayload))
+	if err != nil {
+		_, _ = db.Collection("forwarded_reports").UpdateOne(ctx, bson.M{"_id": forwardRecordID}, bson.M{"$set": bson.M{
+			"status":         "FAILED",
+			"completed_at":   time.Now(),
+			"external_error": err.Error(),
+		}})
+		response.Error(w, http.StatusBadGateway, "Failed to forward report", "External request creation failed")
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		_, _ = db.Collection("forwarded_reports").UpdateOne(ctx, bson.M{"_id": forwardRecordID}, bson.M{"$set": bson.M{
+			"status":         "FAILED",
+			"completed_at":   time.Now(),
+			"external_error": err.Error(),
+		}})
+		response.Error(w, http.StatusBadGateway, "Failed to forward report", "External system unreachable")
+		return
+	}
+	defer resp.Body.Close()
+
+	externalBodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+	externalBody := strings.TrimSpace(string(externalBodyBytes))
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		_, _ = db.Collection("forwarded_reports").UpdateOne(ctx, bson.M{"_id": forwardRecordID}, bson.M{"$set": bson.M{
+			"status":               "FAILED",
+			"completed_at":         time.Now(),
+			"external_status_code": resp.StatusCode,
+			"external_response":    externalBody,
+		}})
+		response.Error(w, http.StatusBadGateway, "Failed to forward report", fmt.Sprintf("External system rejected request (%d)", resp.StatusCode))
+		return
+	}
+
+	// Mark success
+	_, _ = db.Collection("forwarded_reports").UpdateOne(ctx, bson.M{"_id": forwardRecordID}, bson.M{"$set": bson.M{
+		"status":               "SUCCESS",
+		"completed_at":         time.Now(),
+		"external_status_code": resp.StatusCode,
+		"external_response":    externalBody,
+	}})
 
 	// Update original report with forward information
 	update := bson.M{
 		"$set": bson.M{
 			"forwarded_to": input.ForwardTo,
-			"forwarded_at": time.Now(),
+			"forwarded_at": forwardedAt,
 			"updated_at":   time.Now(),
 		},
 		"$push": bson.M{
@@ -1545,7 +1636,8 @@ func adminForwardReportHandler(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, http.StatusOK, "Report forwarded successfully", map[string]interface{}{
 		"report_id":    id,
 		"forward_to":   input.ForwardTo,
-		"forwarded_at": time.Now(),
+		"forwarded_at": forwardedAt,
+		"external_url": externalURL,
 	})
 }
 

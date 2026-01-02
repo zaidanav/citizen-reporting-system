@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
 	"net/http"
@@ -27,7 +28,87 @@ type ReportEvent struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
+type ForwardRequest struct {
+	ForwardTo   string      `json:"forwardTo"`
+	Notes       string      `json:"notes"`
+	ForwardedBy string      `json:"forwardedBy"`
+	ForwardedAt time.Time   `json:"forwardedAt"`
+	Report      ReportEvent `json:"report"`
+}
+
 func main() {
+	// Optional HTTP receiver (mock external endpoint for manual forwarding)
+	httpPort := os.Getenv("DISPATCHER_HTTP_PORT")
+	if httpPort == "" {
+		httpPort = "8085"
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"UP"}`))
+	})
+	mux.HandleFunc("/external/forward", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
+		body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		var req ForwardRequest
+		if err := json.Unmarshal(body, &req); err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid json"})
+			return
+		}
+
+		if strings.TrimSpace(req.ForwardTo) == "" || strings.TrimSpace(req.Report.ID) == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "forwardTo and report.id are required"})
+			return
+		}
+
+		// Use existing simulation logic.
+		report := req.Report
+		if report.IsAnonymous {
+			report.Reporter = "ANONYMOUS"
+			report.ReporterID = "***HIDDEN***"
+		}
+
+		err = sendToDepartment(report, req.ForwardTo)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadGateway)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":     "ACCEPTED",
+			"forwardTo":  req.ForwardTo,
+			"reportId":   req.Report.ID,
+			"receivedAt": time.Now().Format(time.RFC3339),
+		})
+	})
+
+	go func() {
+		addr := ":" + httpPort
+		log.Printf("✅ Dispatcher HTTP Receiver running on %s", addr)
+		if err := http.ListenAndServe(addr, mux); err != nil {
+			log.Printf("⚠️ Dispatcher HTTP server stopped: %v", err)
+		}
+	}()
+
 	// Connect to RabbitMQ
 	amqpURI := fmt.Sprintf("amqp://%s:%s@%s:%s/",
 		os.Getenv("RABBITMQ_USER"),
