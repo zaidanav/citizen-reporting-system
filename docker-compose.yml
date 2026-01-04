@@ -43,7 +43,6 @@ services:
       - "15672:15672"
       - "15692:15692"
     environment:
-      # Do not use 'guest' for inter-container auth; RabbitMQ blocks it remotely by default.
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-lapcw}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-lapcw}
     volumes:
@@ -165,7 +164,6 @@ services:
 
       - APP_ENCRYPTION_KEY=f12c9cc5bd3e3553b0e798087c6c00cb4fcf56ebb1183739670d8fe1fba69d72
 
-      # Forward-to-external integration (manual forwarding)
       - FORWARD_EXTERNAL_URL=http://dispatcher-service:8085/external/forward
 
       - MINIO_ENDPOINT=lapcw-minio:9000
