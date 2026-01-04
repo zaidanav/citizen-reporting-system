@@ -16,8 +16,6 @@ type Report struct {
 	IsPublic            bool               `bson:"is_public" json:"is_public"`
 	AssignedDepartments []string           `bson:"assigned_departments" json:"assigned_departments"`
 	ReporterID          string             `bson:"reporter_id" json:"reporter_id"`
-	// ReporterIDEnc stores the real reporter user id encrypted (AES-GCM) for anonymous reports.
-	// It is never returned in any API response.
 	ReporterIDEnc string     `bson:"reporter_id_enc,omitempty" json:"-"`
 	Reporter      string     `bson:"reporter_name" json:"reporter_name"`
 	ImageURL      string     `bson:"image_url,omitempty" json:"image_url,omitempty"`

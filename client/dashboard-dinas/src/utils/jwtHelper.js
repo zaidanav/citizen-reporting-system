@@ -1,4 +1,3 @@
-// Helper function to decode JWT token and extract claims
 export const decodeToken = (token) => {
   try {
     const base64Url = token.split('.')[1];
@@ -16,7 +15,6 @@ export const decodeToken = (token) => {
   }
 };
 
-// Get department from stored admin user
 export const getDepartmentFromStorage = () => {
   try {
     const adminUser = localStorage.getItem('admin_user');
@@ -30,7 +28,6 @@ export const getDepartmentFromStorage = () => {
   return 'general';
 };
 
-// Get access role from stored admin user
 export const getAccessRoleFromStorage = () => {
   try {
     const adminUser = localStorage.getItem('admin_user');
@@ -44,7 +41,6 @@ export const getAccessRoleFromStorage = () => {
   return 'operational';
 };
 
-// Get role from stored admin user
 export const getRoleFromStorage = () => {
   try {
     const adminUser = localStorage.getItem('admin_user');

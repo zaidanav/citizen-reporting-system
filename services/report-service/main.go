@@ -91,11 +91,9 @@ func canonicalDepartmentKey(raw interface{}) string {
 			return n
 		}
 	}
-	// If it isn't one of known verbose labels, still return a normalized key.
 	return n
 }
 
-// mapCategoryToDepartment maps report categories to departments
 func mapCategoryToDepartment(category string) []string {
 	switch category {
 	case "Sampah":
@@ -109,7 +107,6 @@ func mapCategoryToDepartment(category string) []string {
 	}
 }
 
-// mapDepartmentToCategories maps admin department to report categories they handle
 func mapDepartmentToCategories(department string) []string {
 	switch normalizeDepartment(department) {
 	case "general":
@@ -129,13 +126,11 @@ func mapDepartmentToCategories(department string) []string {
 	}
 }
 
-// hashIdentity creates a one-way hash of user identity for anonymous reports
 func hashIdentity(userID string) string {
 	hash := sha256.Sum256([]byte(userID + "anonymous_salt_2025"))
 	return "ANON_" + hex.EncodeToString(hash[:])[:16]
 }
 
-// isValidCategory checks if category is in allowed list
 func isValidCategory(category string) bool {
 	validCategories := map[string]bool{
 		"Sampah":              true,
@@ -186,12 +181,10 @@ func main() {
 	amqpChannel = ch
 	log.Println("[OK] Connected to RabbitMQ")
 
-	// Ensure exchange exists for notification events
 	if err := amqpChannel.ExchangeDeclare("reports", "direct", true, false, false, false, nil); err != nil {
 		log.Fatalf("[ERROR] Failed to declare exchange 'reports': %v", err)
 	}
 
-	// MinIO client init (for multimedia uploads)
 	minioEndpoint := os.Getenv("MINIO_ENDPOINT")
 	if minioEndpoint == "" {
 		minioEndpoint = "localhost:9000"
@@ -232,47 +225,36 @@ func main() {
 	middleware.RegisterMetrics()
 	log.Println("[INFO] Prometheus metrics initialized")
 
-	// Create mux and register routes
 	mux := http.NewServeMux()
 
-	// Setup HTTP routes
-	// Register specific routes BEFORE generic ones to prevent premature matching
 	mux.HandleFunc("/api/reports/mine", middleware.AuthMiddleware(http.HandlerFunc(myReportsHandler)).ServeHTTP)
 	mux.HandleFunc("/api/reports/upload", middleware.AuthMiddleware(http.HandlerFunc(uploadImageHandler)).ServeHTTP)
 
-	// GET /api/reports is public (no auth required, but can use token for upvote status)
 	mux.HandleFunc("/api/reports", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			middleware.OptionalAuthMiddleware(http.HandlerFunc(reportsHandler)).ServeHTTP(w, r)
 		} else {
-			// POST requires auth
 			middleware.AuthMiddleware(http.HandlerFunc(reportsHandler)).ServeHTTP(w, r)
 		}
 	})
 
-	// Generic route for report detail (with ID)
 	mux.HandleFunc("/api/reports/", middleware.AuthMiddleware(http.HandlerFunc(reportDetailHandler)).ServeHTTP)
 	mux.HandleFunc("/internal/updates", internalUpdateStatusHandler)
 
-	// Health check and Prometheus metrics
 	mux.HandleFunc("/health", healthCheckHandler)
 	mux.Handle("/metrics", middleware.GetMetricsHandler())
 
-	// Admin endpoints (JWT required + role-based access)
 	adminChain := func(h http.Handler) http.Handler {
 		return middleware.AuthMiddleware(middleware.RequireRole("admin", "super-admin")(h))
 	}
-	// Register specific routes BEFORE generic ones to prevent premature matching
 	mux.Handle("/api/reports/admin/escalation", adminChain(http.HandlerFunc(adminEscalationHandler)))
 	mux.Handle("/api/reports/admin/reports/escalate/", adminChain(http.HandlerFunc(adminEscalateReportHandler)))
 	mux.Handle("/api/reports/admin/reports/forward/", adminChain(http.HandlerFunc(adminForwardReportHandler)))
 	mux.Handle("/api/reports/admin/analytics", adminChain(http.HandlerFunc(adminAnalyticsHandler)))
 	mux.Handle("/api/reports/admin/performance", adminChain(http.HandlerFunc(adminPerformanceHandler)))
 
-	// Route List Admin
 	mux.Handle("/api/reports/admin/reports", adminChain(http.HandlerFunc(adminReportsHandler)))
-	
-	// Route Detail Admin
+
 	mux.Handle("/api/reports/admin/reports/", adminChain(http.HandlerFunc(adminReportDetailHandler)))
 
 	go startAutoEscalationWorker()
@@ -294,7 +276,6 @@ func main() {
 	}
 }
 
-// corsPreflightHandler handles preflight CORS requests
 func corsPreflightHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
@@ -307,7 +288,6 @@ func corsPreflightHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// maskAnonymousReporter hides reporter name for anonymous reports
 func maskAnonymousReporter(reports []models.Report) []models.Report {
 	for i := range reports {
 		if reports[i].IsAnonymous {
@@ -317,7 +297,6 @@ func maskAnonymousReporter(reports []models.Report) []models.Report {
 	return reports
 }
 
-// maskAnonymousReporterSingle hides reporter name for single anonymous report
 func maskAnonymousReporterSingle(report *models.Report) {
 	if report.IsAnonymous {
 		report.Reporter = "Pelapor Anonim"
@@ -341,9 +320,7 @@ func computeHasUpvoted(report *models.Report, userID string) {
 }
 
 func sanitizeReportForAdmin(report *models.Report) {
-	// Do not leak reporter_id to admin dashboards.
 	report.ReporterID = ""
-	// Always mask anonymous reporter name.
 	maskAnonymousReporterSingle(report)
 }
 
@@ -374,7 +351,6 @@ func reportDetailHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Upvote endpoints: /api/reports/{id}/upvote
 	if strings.HasSuffix(path, "/upvote") {
 		reportID := strings.TrimSuffix(path, "/upvote")
 		reportID = strings.TrimSuffix(reportID, "/")
@@ -422,7 +398,7 @@ func createReport(w http.ResponseWriter, r *http.Request) {
 		Category    string `json:"category"`
 		Location    string `json:"location"`
 		ImageUrl    string `json:"imageUrl"`
-		Privacy     string `json:"privacy"` // "public", "private", "anonymous"
+		Privacy     string `json:"privacy"`
 		IsAnonymous bool   `json:"isAnonymous"`
 		IsPublic    bool   `json:"isPublic"`
 	}
@@ -432,7 +408,6 @@ func createReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validation
 	if input.Title == "" || input.Description == "" || input.Category == "" {
 		response.Error(w, http.StatusBadRequest, "Title, Description, and Category are required", "")
 		return
@@ -453,7 +428,6 @@ func createReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Determine public/anonymous based on privacy field
 	isPublic := true
 	isAnon := false
 
@@ -464,9 +438,7 @@ func createReport(w http.ResponseWriter, r *http.Request) {
 		isPublic = false
 		isAnon = true
 	}
-	// else default "public" - isPublic=true, isAnon=false
 
-	// Prepare reporter identity - CRITICAL: Hash if anonymous
 	reporterID := claims.UserID
 	reporter := claims.Name
 	if strings.TrimSpace(reporter) == "" {
@@ -566,7 +538,6 @@ func createReport(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[INFO] Event published to '%s'", queueName)
 	}
 
-	// Publish real-time event for dashboards (no reporter identity included)
 	go func(report models.Report) {
 		if err := publishNewReportEvent(report); err != nil {
 			log.Printf("[WARN] Failed to publish new_report notification: %v", err)
@@ -618,7 +589,6 @@ func getReports(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Mask anonymous reporters + compute user upvote state
 	reports = maskAnonymousReporter(reports)
 	reports = decryptReports(reports)
 	for i := range reports {
@@ -667,8 +637,6 @@ func myReportsHandler(w http.ResponseWriter, r *http.Request) {
 		computeHasUpvoted(&reports[i], claims.UserID)
 	}
 
-	// Note: For user's own reports, we show the full name even if anonymous
-	// because they need to see their own anonymous reports properly
 	response.Success(w, http.StatusOK, "User reports fetched successfully", reports)
 }
 
@@ -693,7 +661,6 @@ func getReportByID(w http.ResponseWriter, r *http.Request, id string) {
 		return
 	}
 
-	// Mask anonymous reporter name
 	maskAnonymousReporterSingle(&report)
 	decryptReport(&report)
 	claims, _ := r.Context().Value(middleware.UserContextKey).(*middleware.UserClaims)
@@ -736,8 +703,6 @@ type notificationPayload struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// publishNotificationEvent publishes status update notification to RabbitMQ.
-// It targets ONLY the report owner (user_id) and never includes reporter identity fields.
 func publishNotificationEvent(reportID, title, status string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -752,11 +717,9 @@ func publishNotificationEvent(reportID, title, status string) error {
 		return err
 	}
 
-	// Determine the real user id for notifications.
 	userID := report.ReporterID
 	if report.IsAnonymous {
 		if report.ReporterIDEnc == "" {
-			// Should not happen for new anonymous reports; avoid leaking by broadcasting.
 			userID = ""
 		} else {
 			realID, err := security.DecryptString(report.ReporterIDEnc)
@@ -798,8 +761,6 @@ func publishNotificationEvent(reportID, title, status string) error {
 	)
 }
 
-// publishNewReportEvent publishes a real-time event for dashboards when a report is created.
-// This event contains no reporter identity.
 func publishNewReportEvent(report models.Report) error {
 	payload := notificationPayload{
 		ID:        report.ID.Hex(),
@@ -831,7 +792,6 @@ func publishNewReportEvent(report models.Report) error {
 	)
 }
 
-// translateStatus converts status to Indonesian
 func translateStatus(status string) string {
 	s := strings.ToUpper(strings.TrimSpace(status))
 	s = strings.ReplaceAll(s, "-", "_")
@@ -850,7 +810,6 @@ func translateStatus(status string) string {
 }
 
 func updateReportStatus(w http.ResponseWriter, r *http.Request, id string) {
-	// Only admins can change report status through this public endpoint.
 	claims, _ := r.Context().Value(middleware.UserContextKey).(*middleware.UserClaims)
 	if claims == nil || claims.Role != "admin" {
 		response.Error(w, http.StatusForbidden, "Forbidden", "Only admin can update report status")
@@ -905,7 +864,6 @@ func updateReportStatus(w http.ResponseWriter, r *http.Request, id string) {
 		return
 	}
 
-	// Publish notification event
 	go func() {
 		if err := publishNotificationEvent(id, "Status Laporan Diperbarui", input.Status); err != nil {
 			log.Printf("[WARN] Failed to publish notification: %v", err)
@@ -1075,8 +1033,6 @@ func internalUpdateStatusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Publish notification event so citizens/admin dashboards can receive real-time updates via SSE.
-	// Do not fail the internal update if notification publishing fails.
 	go func(reportID, status string) {
 		if err := publishNotificationEvent(reportID, "Status Laporan Diperbarui", status); err != nil {
 			log.Printf("[WARN] Failed to publish status_update notification (internal) for report %s: %v", reportID, err)
@@ -1086,7 +1042,6 @@ func internalUpdateStatusHandler(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, http.StatusOK, "Report status updated via internal API", nil)
 }
 
-// Admin endpoints - Get all reports (with filters)
 func adminReportsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		response.Error(w, http.StatusMethodNotAllowed, "Method not allowed", "")
@@ -1101,16 +1056,13 @@ func adminReportsHandler(w http.ResponseWriter, r *http.Request) {
 		department = claims.Department
 	}
 
-	// Build filter
 	filter := bson.M{}
 
-	// Status filter
 	status := r.URL.Query().Get("status")
 	if status != "" {
 		filter["status"] = status
 	}
 
-	// Department-based category filter (RBAC)
 	if department != "" && department != "general" {
 		allowedCategories := mapDepartmentToCategories(department)
 		if len(allowedCategories) > 0 {
@@ -1119,7 +1071,6 @@ func adminReportsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Category filter (if explicitly provided, must be within department scope)
 	category := r.URL.Query().Get("category")
 	if category != "" {
 		if department != "" && department != "general" {
@@ -1139,7 +1090,6 @@ func adminReportsHandler(w http.ResponseWriter, r *http.Request) {
 		filter["category"] = category
 	}
 
-	// Time range filter (default: 30 days)
 	timeRangeStr := r.URL.Query().Get("timeRange")
 	if timeRangeStr == "" {
 		timeRangeStr = "30d"
@@ -1178,7 +1128,6 @@ func adminReportsHandler(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, http.StatusOK, "Reports fetched successfully", reports)
 }
 
-// Admin endpoints - Get analytics data
 func adminAnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		response.Error(w, http.StatusMethodNotAllowed, "Method not allowed", "")
@@ -1205,7 +1154,6 @@ func adminAnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 
 	startDate := time.Now().AddDate(0, 0, -days)
 
-	// Build base filter with department scope
 	baseFilter := bson.M{
 		"created_at": bson.M{"$gte": startDate},
 	}
@@ -1222,14 +1170,12 @@ func adminAnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Count total reports
 	totalCount, err := db.Collection("reports").CountDocuments(ctx, baseFilter)
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, "Failed to count reports", err.Error())
 		return
 	}
 
-	// Count by status
 	pendingFilter := bson.M{
 		"status":     "PENDING",
 		"created_at": bson.M{"$gte": startDate},
@@ -1257,7 +1203,6 @@ func adminAnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	completedCount, _ := db.Collection("reports").CountDocuments(ctx, completedFilter)
 
-	// Get total upvotes
 	pipeline := []bson.M{
 		{
 			"$match": baseFilter,
@@ -1313,7 +1258,6 @@ func adminAnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 		completionRate = (float64(completedCount) / float64(totalCount)) * 100
 	}
 
-	// Get category breakdown
 	categoryPipeline := []bson.M{
 		{
 			"$match": baseFilter,
@@ -1345,7 +1289,6 @@ func adminAnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert category stats to frontend format
 	categoryData := make([]map[string]interface{}, 0)
 	for _, cat := range categoryStats {
 		categoryData = append(categoryData, map[string]interface{}{
@@ -1373,7 +1316,6 @@ func adminAnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, http.StatusOK, "Analytics data retrieved", analytics)
 }
 
-// Admin endpoint - Get single report by ID
 func adminReportDetailHandler(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Path[len("/api/reports/admin/reports/"):]
 	if id == "" {
@@ -1469,7 +1411,6 @@ func adminUpdateReportStatus(w http.ResponseWriter, r *http.Request, id string) 
 
 	log.Printf("[OK] Admin updated report status - ID: %s, Status: %s", id, input.Status)
 
-	// Publish notification event
 	go func() {
 		if err := publishNotificationEvent(id, "Status Laporan Diperbarui", input.Status); err != nil {
 			log.Printf("[WARN] Failed to publish notification: %v", err)
@@ -1479,7 +1420,6 @@ func adminUpdateReportStatus(w http.ResponseWriter, r *http.Request, id string) 
 	response.Success(w, http.StatusOK, "Report status updated", nil)
 }
 
-// Admin forward report to external system
 func adminForwardReportHandler(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Path[len("/api/reports/admin/reports/forward/"):]
 	if id == "" {
@@ -1516,7 +1456,6 @@ func adminForwardReportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get report first
 	var report models.Report
 	err = db.Collection("reports").FindOne(ctx, bson.M{"_id": objID}).Decode(&report)
 	if err != nil {
@@ -1538,13 +1477,11 @@ func adminForwardReportHandler(w http.ResponseWriter, r *http.Request) {
 
 	externalURL := strings.TrimSpace(os.Getenv("FORWARD_EXTERNAL_URL"))
 	if externalURL == "" {
-		// Default for docker-compose internal network.
 		externalURL = "http://dispatcher-service:8085/external/forward"
 	}
 
 	forwardedAt := time.Now()
 
-	// Create an audit record first, then attempt the external call.
 	forwardRecord := bson.M{
 		"report_id":    objID,
 		"forward_to":   input.ForwardTo,
@@ -1563,7 +1500,6 @@ func adminForwardReportHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	forwardRecordID := insertRes.InsertedID
 
-	// Build payload for external system.
 	externalPayload := map[string]interface{}{
 		"forwardTo":   input.ForwardTo,
 		"notes":       input.Notes,
@@ -1631,7 +1567,6 @@ func adminForwardReportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Mark success
 	_, _ = db.Collection("forwarded_reports").UpdateOne(ctx, bson.M{"_id": forwardRecordID}, bson.M{"$set": bson.M{
 		"status":               "SUCCESS",
 		"completed_at":         time.Now(),
@@ -1639,7 +1574,6 @@ func adminForwardReportHandler(w http.ResponseWriter, r *http.Request) {
 		"external_response":    externalBody,
 	}})
 
-	// Update original report with forward information
 	update := bson.M{
 		"$set": bson.M{
 			"forwarded_to": input.ForwardTo,
@@ -1659,7 +1593,6 @@ func adminForwardReportHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("[OK] Admin forwarded report - ID: %s, ForwardTo: %s", id, input.ForwardTo)
 
-	// Publish notification event
 	go func() {
 		if err := publishNotificationEvent(id, "Laporan Diteruskan", "IN_PROGRESS"); err != nil {
 			log.Printf("[WARN] Failed to publish notification: %v", err)
@@ -1674,7 +1607,6 @@ func adminForwardReportHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Admin get escalated reports (reports needing attention)
 func adminEscalationHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		response.Error(w, http.StatusMethodNotAllowed, "Method not allowed", "")
@@ -1684,19 +1616,16 @@ func adminEscalationHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Get filter parameter
 	filter := r.URL.Query().Get("filter")
 	department := ""
 	if claims, ok := r.Context().Value(middleware.UserContextKey).(*middleware.UserClaims); ok {
 		department = claims.Department
 	}
 
-	// Build query
 	query := bson.M{
 		"status": bson.M{"$in": []string{"PENDING", "IN_PROGRESS"}},
 	}
 
-	// Add department-based category filter
 	if department != "" {
 		allowedCategories := mapDepartmentToCategories(department)
 		if len(allowedCategories) > 0 {
@@ -1704,16 +1633,13 @@ func adminEscalationHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Apply filters
 	if filter == "sla-breached" {
-		// Reports where SLA deadline has passed
 		query["sla_deadline"] = bson.M{"$lt": time.Now()}
 		query["is_escalated"] = bson.M{"$ne": true}
 	} else if filter == "escalated" {
 		query["is_escalated"] = true
 	}
 
-	// Fetch reports
 	cursor, err := db.Collection("reports").Find(ctx, query, options.Find().SetSort(bson.M{"created_at": -1}))
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, "Failed to fetch reports", err.Error())
@@ -1727,7 +1653,6 @@ func adminEscalationHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Add SLA deadline for reports that don't have it (default 48 hours from creation)
 	for _, report := range reports {
 		if _, hasDeadline := report["sla_deadline"]; !hasDeadline {
 			createdAt, ok := report["created_at"].(primitive.DateTime)
@@ -1743,7 +1668,6 @@ func adminEscalationHandler(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, http.StatusOK, "Escalation reports fetched successfully", reports)
 }
 
-// Admin escalate report to higher authority
 func adminEscalateReportHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		response.Error(w, http.StatusMethodNotAllowed, "Method not allowed", "")
@@ -1773,7 +1697,6 @@ func adminEscalateReportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if report exists
 	var report bson.M
 	err = db.Collection("reports").FindOne(ctx, bson.M{"_id": objID}).Decode(&report)
 	if err != nil {
@@ -1781,13 +1704,11 @@ func adminEscalateReportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if already escalated
 	if isEscalated, ok := report["is_escalated"].(bool); ok && isEscalated {
 		response.Error(w, http.StatusConflict, "Report is already escalated", "")
 		return
 	}
 
-	// Update report with escalation flag
 	update := bson.M{
 		"$set": bson.M{
 			"is_escalated": true,
@@ -1805,7 +1726,6 @@ func adminEscalateReportHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("[OK] Admin escalated report - ID: %s", id)
 
-	// Publish notification event
 	go func() {
 		if err := publishNotificationEvent(id, "Laporan Dieskalasi", "IN_PROGRESS"); err != nil {
 			log.Printf("[WARN] Failed to publish notification: %v", err)
@@ -1819,7 +1739,6 @@ func adminEscalateReportHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Admin endpoints - Cross-department performance (super-admin monitoring)
 func adminPerformanceHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		response.Error(w, http.StatusMethodNotAllowed, "Method not allowed", "")
@@ -1854,9 +1773,6 @@ func adminPerformanceHandler(w http.ResponseWriter, r *http.Request) {
 
 	requestedDepartment := strings.TrimSpace(r.URL.Query().Get("department"))
 
-	// Scope rules:
-	// - super-admin: can query all (default) or a specific department via ?department=
-	// - admin: always limited to summary only (department from claims); ignores ?department=
 	scopeDepartment := ""
 	if claims.Role == "super-admin" {
 		if requestedDepartment != "" && requestedDepartment != "all" {
@@ -1872,7 +1788,6 @@ func adminPerformanceHandler(w http.ResponseWriter, r *http.Request) {
 		"created_at": bson.M{"$gte": startDate},
 	}
 
-	// Use AssignedDepartments when available.
 	pipeline := []bson.M{
 		{"$match": baseMatch},
 		{"$unwind": "$assigned_departments"},
@@ -1994,7 +1909,6 @@ func adminPerformanceHandler(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, http.StatusOK, "Performance data retrieved", payload)
 }
 
-// uploadImageHandler handles image upload to local storage (MinIO-compatible)
 func uploadImageHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		response.Error(w, http.StatusMethodNotAllowed, "Method not allowed", "")
@@ -2006,7 +1920,6 @@ func uploadImageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse multipart form (max 10MB)
 	err := r.ParseMultipartForm(10 << 20)
 	if err != nil {
 		response.Error(w, http.StatusBadRequest, "Failed to parse form", err.Error())
@@ -2020,10 +1933,6 @@ func uploadImageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Read file into memory (max 5MB) so we can:
-	// - reliably validate size
-	// - detect content type
-	// - upload with known content length
 	data, err := io.ReadAll(io.LimitReader(file, (5<<20)+1))
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, "Failed to read file", err.Error())
@@ -2038,7 +1947,6 @@ func uploadImageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate file type
 	contentType := http.DetectContentType(data)
 	allowedTypes := map[string]string{
 		"image/jpeg": ".jpg",
@@ -2073,7 +1981,6 @@ func uploadImageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Accessible via nginx gateway route: /storage/<bucket>/<object>
 	fileURL := fmt.Sprintf("/storage/%s/%s", minioBucket, objectName)
 
 	log.Printf("[OK] Image uploaded - Object: %s/%s, Size: %d bytes", minioBucket, objectName, len(data))
@@ -2087,7 +1994,6 @@ func uploadImageHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// healthCheckHandler returns service health status
 func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	health := map[string]interface{}{
 		"status":    "UP",
@@ -2095,7 +2001,6 @@ func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 		"timestamp": time.Now().Format(time.RFC3339),
 	}
 
-	// Check database connectivity
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
@@ -2112,20 +2017,16 @@ func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(health)
 }
 
-// metricsHandler returns basic metrics for monitoring
 func metricsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Count total reports
 	totalReports, _ := db.Collection("reports").CountDocuments(ctx, bson.M{})
 
-	// Count by status
 	pendingReports, _ := db.Collection("reports").CountDocuments(ctx, bson.M{"status": "PENDING"})
 	inProgressReports, _ := db.Collection("reports").CountDocuments(ctx, bson.M{"status": "IN_PROGRESS"})
 	resolvedReports, _ := db.Collection("reports").CountDocuments(ctx, bson.M{"status": "RESOLVED"})
 
-	// Count anonymous reports
 	anonymousReports, _ := db.Collection("reports").CountDocuments(ctx, bson.M{"is_anonymous": true})
 
 	metrics := map[string]interface{}{

@@ -12,17 +12,14 @@ import Layout from './components/Layout';
 
 function App() {
   const { isAuthenticated, token } = useAuthStore();
-  
-  // Subscribe to real-time notifications
+
   useNotificationSubscription();
 
   useEffect(() => {
-    // Connect WebSocket on app load if authenticated
     if (isAuthenticated && token) {
       notificationService.connect(token);
     }
 
-    // Cleanup on unmount
     return () => {
       notificationService.disconnect();
     };
@@ -35,12 +32,12 @@ function App() {
         <Route path="/login" element={
           isAuthenticated ? <Navigate to="/feed" replace /> : <Login />
         } />
-        
+
         {/* All app routes use Layout */}
         <Route element={<Layout />}>
           {/* Public route - Feed */}
           <Route path="/feed" element={<Feed />} />
-          
+
           {/* Protected routes */}
           <Route path="/my-reports" element={
             isAuthenticated ? <MyReports /> : <Navigate to="/login" replace />
@@ -49,7 +46,7 @@ function App() {
             isAuthenticated ? <CreateReportPage /> : <Navigate to="/login" replace />
           } />
         </Route>
-        
+
         <Route path="/" element={<Navigate to="/feed" replace />} />
         <Route path="*" element={<Navigate to="/feed" replace />} />
       </Routes>

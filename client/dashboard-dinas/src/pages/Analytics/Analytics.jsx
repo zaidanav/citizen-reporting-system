@@ -30,7 +30,6 @@ const Analytics = () => {
       setLoading(true);
       const response = await reportService.getAnalytics(timeRange);
       console.log('[Analytics] Analytics response:', response);
-      // Handle both response.data and response formats
       const analyticsData = response.data || response;
       setAnalyticsData(analyticsData);
     } catch (error) {
@@ -62,17 +61,14 @@ const Analytics = () => {
     );
   }
 
-  // Prepare data for charts
   const allStatusData = [
     { name: 'Selesai', value: analyticsData.completed || 0, color: '#5A7A96' },
     { name: 'Diproses', value: analyticsData.inProgress || 0, color: '#456882' },
     { name: 'Menunggu', value: analyticsData.pending || 0, color: '#234C6A' },
   ];
-  
-  // Filter out status dengan value 0
+
   const statusData = allStatusData.filter(s => s.value > 0);
 
-  // Use real category data from API
   const categoryData = (analyticsData.categories || []).map(cat => ({
     name: cat.name,
     total: cat.total,
@@ -86,7 +82,7 @@ const Analytics = () => {
           <h1 className="analytics-title">Dashboard Analitik</h1>
           <p className="analytics-subtitle">Visualisasi data kinerja sistem pelaporan</p>
         </div>
-        
+
         <div className="time-range-selector">
           <button
             className={`time-btn ${timeRange === '7d' ? 'time-btn--active' : ''}`}
@@ -108,7 +104,7 @@ const Analytics = () => {
           </button>
         </div>
       </div>
-      
+
       {/* KPI Cards */}
       <div className="kpi-grid">
         <KPICard
@@ -140,7 +136,7 @@ const Analytics = () => {
           trendUp={true}
         />
       </div>
-      
+
       {/* Charts Grid */}
       <div className="charts-grid">
         {/* Status Distribution - Pie Chart */}
@@ -160,8 +156,8 @@ const Analytics = () => {
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
-              <Legend 
-                verticalAlign="bottom" 
+              <Legend
+                verticalAlign="bottom"
                 height={36}
                 iconType="circle"
                 formatter={(value) => <span style={{ color: '#FFFFFF', fontWeight: '600', fontSize: '14px' }}>{value}</span>}
@@ -185,7 +181,7 @@ const Analytics = () => {
             )}
           </div>
         </div>
-        
+
         {/* Category Performance - Bar Chart */}
         <div className="chart-card chart-card--wide">
           <h3 className="chart-title">Kinerja per Kategori</h3>
@@ -208,7 +204,7 @@ const Analytics = () => {
                     borderRadius: '8px',
                   }}
                 />
-                <Legend 
+                <Legend
                   iconType="circle"
                   formatter={(value) => <span style={{ color: '#FFFFFF', fontWeight: '600', fontSize: '14px' }}>{value}</span>}
                 />
@@ -221,7 +217,7 @@ const Analytics = () => {
           )}
         </div>
       </div>
-      
+
       {/* Insights */}
       <div className="insights-section">
         <h2 className="insights-title">Insight Kunci</h2>
@@ -229,7 +225,7 @@ const Analytics = () => {
           {categoryData.length > 0 && (
             <>
               {(() => {
-                const bestCategory = categoryData.reduce((prev, current) => 
+                const bestCategory = categoryData.reduce((prev, current) =>
                   current.selesai > (prev.selesai || 0) ? current : prev
                 );
                 const bestRate = bestCategory.total ? ((bestCategory.selesai / bestCategory.total) * 100).toFixed(0) : 0;
@@ -242,7 +238,7 @@ const Analytics = () => {
                 );
               })()}
               {(() => {
-                const worstCategory = categoryData.reduce((prev, current) => 
+                const worstCategory = categoryData.reduce((prev, current) =>
                   (current.total - current.selesai) > (prev.total - prev.selesai) ? current : prev
                 );
                 return (

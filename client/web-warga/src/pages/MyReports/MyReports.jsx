@@ -11,10 +11,10 @@ const MyReports = () => {
   const navigate = useNavigate();
   const addNotification = useNotificationStore((state) => state.addNotification);
   const lastReportStatusUpdate = useNotificationStore((state) => state.lastReportStatusUpdate);
-  
+
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all'); // all, PENDING, IN_PROGRESS, RESOLVED
+  const [filter, setFilter] = useState('all');
 
   useEffect(() => {
     loadMyReports();
@@ -75,7 +75,7 @@ const MyReports = () => {
           <p className="my-reports-subtitle">Pantau status laporan yang Anda buat</p>
         </div>
       </div>
-      
+
       <div className="container">
         {/* Filter Tabs */}
         <div className="my-reports-filters">
@@ -108,7 +108,7 @@ const MyReports = () => {
             <span className="filter-tab__count filter-tab__count--completed">{counts.RESOLVED}</span>
           </button>
         </div>
-        
+
         {loading ? (
           <div className="my-reports-loading">
             <div className="spinner"></div>
@@ -158,7 +158,6 @@ const MyReportCard = ({ report }) => {
     updatedAt,
   } = report;
 
-  // Debug log
   console.log('[MyReportCard] Data:', {
     title,
     isPublic,
@@ -167,7 +166,6 @@ const MyReportCard = ({ report }) => {
     rawReport: report,
   });
 
-  // Reconstruct privacy from isPublic and isAnonymous flags
   const getPrivacyType = () => {
     const type = !isPublic ? 'private' : isAnonymous ? 'anonymous' : 'public';
     console.log('[Privacy] Type calculation:', { isPublic, isAnonymous, resultType: type });
@@ -245,24 +243,24 @@ const MyReportCard = ({ report }) => {
           {getPrivacyLabel()}
         </span>
       </div>
-      
+
       <div className="my-report-card__body">
         <h3 className="my-report-card__title">{title}</h3>
-        
+
         <div className="my-report-card__info">
           <span className="my-report-card__category">Kategori: {category}</span>
           <span className="my-report-card__location">Lokasi: {location}</span>
         </div>
-        
+
         <p className="my-report-card__description">{description}</p>
-        
+
         {imageUrl && (
           <div className="my-report-card__image">
             <img src={imageUrl} alt={title} />
           </div>
         )}
       </div>
-      
+
       <div className="my-report-card__footer">
         <div className="my-report-card__stats">
           <span className="my-report-card__stat">

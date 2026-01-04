@@ -11,8 +11,8 @@ type User struct {
 	Email      string         `gorm:"uniqueIndex;not null" json:"email"`
 	Password   string         `gorm:"not null" json:"-"`
 	Name       string         `gorm:"not null" json:"name"`
-	Role       string         `gorm:\"default:'citizen'\" json:\"role\"`            // citizen, admin
-	AccessRole string         `gorm:\"default:'operational'\" json:\"access_role\"` // operational, strategic (for admin)
+	Role       string         `gorm:\"default:'citizen'\" json:\"role\"`
+	AccessRole string         `gorm:\"default:'operational'\" json:\"access_role\"`
 	Department string         `gorm:"default:'general'" json:"department"`
 	NIK        *string        `gorm:"uniqueIndex" json:"nik,omitempty"`
 	Phone      string         `json:"phone,omitempty"`

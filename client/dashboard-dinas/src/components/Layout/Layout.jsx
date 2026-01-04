@@ -31,20 +31,20 @@ const Layout = ({ setAuth }) => {
               <span className="admin-navbar-badge">Super Admin</span>
             )}
           </div>
-          
+
           <div className="admin-navbar-menu">
-            <NavLink to="/dashboard" className={({ isActive }) => 
+            <NavLink to="/dashboard" className={({ isActive }) =>
               `admin-navbar-link ${isActive ? 'admin-navbar-link--active' : ''}`
             }>
               Dashboard
             </NavLink>
-            <NavLink to="/escalation" className={({ isActive }) => 
+            <NavLink to="/escalation" className={({ isActive }) =>
               `admin-navbar-link ${isActive ? 'admin-navbar-link--active' : ''}`
             }>
               Eskalasi
             </NavLink>
             {isStrategic && (
-              <NavLink to="/analytics" className={({ isActive }) => 
+              <NavLink to="/analytics" className={({ isActive }) =>
                 `admin-navbar-link ${isActive ? 'admin-navbar-link--active' : ''}`
               }>
                 Analitik
@@ -52,14 +52,14 @@ const Layout = ({ setAuth }) => {
             )}
 
             {isSuperAdmin && (
-              <NavLink to="/performance" className={({ isActive }) => 
+              <NavLink to="/performance" className={({ isActive }) =>
                 `admin-navbar-link ${isActive ? 'admin-navbar-link--active' : ''}`
               }>
                 Performa
               </NavLink>
             )}
           </div>
-          
+
           <div className="admin-navbar-user">
             <span className="admin-navbar-username">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -74,11 +74,11 @@ const Layout = ({ setAuth }) => {
           </div>
         </div>
       </nav>
-      
+
       <main className="admin-main-content">
         <Outlet />
       </main>
-      
+
       <footer className="admin-footer">
         <p className="admin-footer-text">
           © 2025 Dashboard Dinas - Sistem Pelaporan Warga Kota

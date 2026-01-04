@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import './Toast.css';
 
-// Minimal store untuk notifications
 let notificationStore = {
   notifications: [],
   listeners: [],

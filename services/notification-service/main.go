@@ -21,7 +21,7 @@ type NotificationEvent struct {
 	ReportID  string    `json:"report_id"`
 	Title     string    `json:"title"`
 	Message   string    `json:"message"`
-	Type      string    `json:"type"` // status_update, new_report, comment
+	Type      string    `json:"type"`
 	Status    string    `json:"status"`
 	Category  string    `json:"category,omitempty"`
 	UserID    string    `json:"user_id"`
@@ -104,10 +104,8 @@ func validateToken(tokenString string) (*middleware.UserClaims, error) {
 }
 
 func main() {
-	// Build RabbitMQ URL from environment variables
 	rabbitMQURL := os.Getenv("RABBITMQ_URL")
 	if rabbitMQURL == "" {
-		// Fallback: build URL from individual components
 		host := os.Getenv("RABBITMQ_HOST")
 		if host == "" {
 			host = "localhost"
@@ -129,7 +127,6 @@ func main() {
 
 	log.Printf("[INFO] Connecting to RabbitMQ at: %s", rabbitMQURL)
 
-	// RabbitMQ connection
 	conn, err := amqp.Dial(rabbitMQURL)
 	if err != nil {
 		log.Fatalf("[ERROR] Failed to connect to RabbitMQ: %v", err)
@@ -144,7 +141,6 @@ func main() {
 
 	log.Println("[OK] Connected to RabbitMQ")
 
-	// Declare exchange & queue
 	err = ch.ExchangeDeclare("reports", "direct", true, false, false, false, nil)
 	if err != nil {
 		log.Fatalf("[ERROR] Failed to declare exchange: %v", err)
@@ -170,13 +166,10 @@ func main() {
 	middleware.RegisterMetrics()
 	log.Println("[INFO] Prometheus metrics initialized")
 
-	// Goroutine: Consume messages from RabbitMQ
 	go consumeMessages(ch, queue.Name)
 
-	// Goroutine: Handle client connections & broadcasting
 	go handleClients()
 
-	// Create HTTP multiplexer
 	apiMux := http.NewServeMux()
 	apiMux.HandleFunc("/health", healthHandler)
 	apiMux.Handle("/metrics", middleware.GetMetricsHandler())
@@ -204,7 +197,6 @@ func main() {
 	}
 }
 
-// Consume messages from RabbitMQ
 func consumeMessages(ch *amqp.Channel, queueName string) {
 	msgs, err := ch.Consume(queueName, "", true, false, false, false, nil)
 	if err != nil {
@@ -223,7 +215,6 @@ func consumeMessages(ch *amqp.Channel, queueName string) {
 	}
 }
 
-// Handle client connections and broadcasting
 func handleClients() {
 	for {
 		select {
@@ -245,14 +236,12 @@ func handleClients() {
 		case event := <-broadcast:
 			mu.RLock()
 			for client := range clients {
-				// status_update: send only to the owner
 				if event.Type == "status_update" {
 					if event.UserID == "" || client.UserID != event.UserID {
 						continue
 					}
 				}
 
-				// new_report: send only to admin dashboards (optionally filtered by department categories)
 				if event.Type == "new_report" {
 					if client.AccessRole != "admin" {
 						continue
@@ -268,7 +257,6 @@ func handleClients() {
 				select {
 				case client.Send <- event:
 				default:
-					// Client's send channel is full, skip
 				}
 			}
 			mu.RUnlock()
@@ -276,7 +264,6 @@ func handleClients() {
 	}
 }
 
-// SSE Handler for client subscriptions
 func subscribeHandler(w http.ResponseWriter, r *http.Request) {
 	tokenString := r.URL.Query().Get("token")
 	if tokenString == "" {
@@ -302,7 +289,6 @@ func subscribeHandler(w http.ResponseWriter, r *http.Request) {
 	accessRole := claims.Role
 	department := claims.Department
 
-	// Set SSE headers
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -310,7 +296,6 @@ func subscribeHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
-	// Create client
 	client := &Client{
 		UserID:     userID,
 		AccessRole: accessRole,
@@ -323,11 +308,9 @@ func subscribeHandler(w http.ResponseWriter, r *http.Request) {
 		unregister <- client
 	}()
 
-	// Send initial connection message
 	fmt.Fprintf(w, "data: %s\n\n", `{"type":"connected","message":"Connection established"}`)
 	w.(http.Flusher).Flush()
 
-	// Send notifications to client
 	for event := range client.Send {
 		data, _ := json.Marshal(event)
 		fmt.Fprintf(w, "data: %s\n\n", string(data))
@@ -335,7 +318,6 @@ func subscribeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Health check endpoint
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -353,7 +335,6 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(health)
 }
 
-// Metrics handler
 func metricsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")

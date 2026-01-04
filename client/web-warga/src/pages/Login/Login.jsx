@@ -12,7 +12,7 @@ const Login = () => {
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
   const addNotification = useNotificationStore((state) => state.addNotification);
-  
+
   const [isRegister, setIsRegister] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
@@ -33,93 +33,89 @@ const Login = () => {
 
   const validateForm = () => {
     const newErrors = {};
-    
+
     if (!formData.email.trim()) {
       newErrors.email = 'Email wajib diisi';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = 'Email tidak valid';
     }
-    
+
     if (!formData.password) {
       newErrors.password = 'Password wajib diisi';
     } else if (formData.password.length < 8) {
       newErrors.password = 'Password minimal 8 karakter';
     }
-    
+
     if (isRegister) {
       if (!formData.name.trim()) {
         newErrors.name = 'Nama wajib diisi';
       }
-      
+
       if (formData.password !== formData.confirmPassword) {
         newErrors.confirmPassword = 'Password tidak cocok';
       }
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
-    
+
     setLoading(true);
-    
+
     try {
       if (isRegister) {
-        // Register
         const response = await authService.register(
           formData.name,
           formData.email,
           formData.password
         );
-        
-        // Backend returns: { status: "success", message: "...", data: { token, name, role } }
-        // Login after register
+
         const loginResponse = await authService.login(
           formData.email,
           formData.password
         );
-        
+
         const userData = {
           id: loginResponse.id,
           name: loginResponse.name,
           role: loginResponse.role,
         };
-        
+
         login(userData, loginResponse.token);
-        
+
         addNotification({
           type: 'success',
           title: 'Registrasi Berhasil',
           message: 'Selamat datang di Lapor Warga!',
         });
       } else {
-        // Login
         const response = await authService.login(
           formData.email,
           formData.password
         );
-        
+
         const userData = {
           id: response.id,
           name: response.name,
           role: response.role,
         };
-        
+
         login(userData, response.token);
-        
+
         addNotification({
           type: 'success',
           title: 'Login Berhasil',
           message: `Selamat datang kembali, ${response.name}!`,
         });
       }
-      
+
       navigate('/feed');
     } catch (error) {
       console.error('Auth error:', error);
@@ -140,12 +136,12 @@ const Login = () => {
           <h1 className="login-logo">Lapor Warga</h1>
           <p className="login-tagline">Sistem Pelaporan Warga Kota</p>
         </div>
-        
+
         <Card className="login-card">
           <h2 className="login-title">
             {isRegister ? 'Daftar Akun Baru' : 'Masuk ke Akun Anda'}
           </h2>
-          
+
           <form onSubmit={handleSubmit} className="login-form">
             {isRegister && (
               <Input
@@ -158,7 +154,7 @@ const Login = () => {
                 required
               />
             )}
-            
+
             <Input
               label="Email"
               type="email"
@@ -169,7 +165,7 @@ const Login = () => {
               error={errors.email}
               required
             />
-            
+
             <Input
               label="Password"
               type="password"
@@ -180,7 +176,7 @@ const Login = () => {
               error={errors.password}
               required
             />
-            
+
             {isRegister && (
               <Input
                 label="Konfirmasi Password"
@@ -193,7 +189,7 @@ const Login = () => {
                 required
               />
             )}
-            
+
             <Button
               type="submit"
               variant="primary"
@@ -204,7 +200,7 @@ const Login = () => {
               {isRegister ? 'Daftar' : 'Masuk'}
             </Button>
           </form>
-          
+
           <div className="login-footer">
             <p className="login-switch">
               {isRegister ? 'Sudah punya akun?' : 'Belum punya akun?'}

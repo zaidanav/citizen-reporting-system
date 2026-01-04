@@ -2,7 +2,6 @@ import api from '../api/client';
 import { getDepartmentFromStorage } from '../utils/jwtHelper';
 
 export const reportService = {
-  // Get all reports with filtering
   getAllReports: async (filters = {}) => {
     try {
       const department = getDepartmentFromStorage();
@@ -13,18 +12,15 @@ export const reportService = {
         },
       });
       console.log('[Service] Admin reports response:', response.data);
-      // Return the data from response structure
       return response.data.data || [];
     } catch (error) {
       console.error('[Service] Failed to fetch admin reports:', error);
       throw error;
     }
   },
-  
-  // Update report status
+
   updateReportStatus: async (reportId, status, notes = '') => {
     try {
-      // Status is already in uppercase format (PENDING, IN_PROGRESS, RESOLVED)
       const response = await api.put(`/admin/reports/${reportId}`, {
         status: status,
         notes,
@@ -36,8 +32,7 @@ export const reportService = {
       throw error;
     }
   },
-  
-  // Get analytics data
+
   getAnalytics: async (timeRange = '30d') => {
     try {
       const department = getDepartmentFromStorage();
@@ -48,11 +43,9 @@ export const reportService = {
         },
       });
       console.log('[Service] Analytics response:', response.data);
-      // Backend returns: { status: "success", message: "...", data: analyticsData }
       return response.data;
     } catch (error) {
       console.error('[Service] Failed to fetch analytics:', error);
-      // Return mock data for demo
       return {
         status: 'success',
         data: {
@@ -68,7 +61,6 @@ export const reportService = {
     }
   },
 
-  // Get cross-department performance (super-admin)
   getPerformance: async (timeRange = '30d', department = 'all') => {
     try {
       const deptHeader = getDepartmentFromStorage();
@@ -85,7 +77,6 @@ export const reportService = {
     }
   },
 
-  // Forward report to external system
   forwardReport: async (reportId, forwardTo, notes = '') => {
     try {
       const response = await api.post(`/admin/reports/forward/${reportId}`, {
@@ -100,7 +91,6 @@ export const reportService = {
     }
   },
 
-  // Get escalated reports (reports needing attention)
   getEscalatedReports: async (filter = 'all') => {
     try {
       const department = getDepartmentFromStorage();
@@ -118,7 +108,6 @@ export const reportService = {
     }
   },
 
-  // Escalate report to higher authority
   escalateReport: async (reportId) => {
     try {
       const response = await api.post(`/admin/reports/escalate/${reportId}`);

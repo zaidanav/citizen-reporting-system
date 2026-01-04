@@ -6,12 +6,11 @@ import './Escalation.css';
 const Escalation = () => {
   const [escalatedReports, setEscalatedReports] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all'); // all, sla-breached, escalated
+  const [filter, setFilter] = useState('all');
 
   useEffect(() => {
     loadEscalatedReports();
-    
-    // Poll for updates every 30 seconds
+
     const interval = setInterval(loadEscalatedReports, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -19,7 +18,6 @@ const Escalation = () => {
   const loadEscalatedReports = async () => {
     try {
       setLoading(true);
-      // Always fetch all escalated reports without filter for accurate counts
       const data = await reportService.getEscalatedReports('all');
       const normalized = Array.isArray(data)
         ? data.map((r) => ({
@@ -44,13 +42,13 @@ const Escalation = () => {
   const handleEscalate = async (reportId) => {
     try {
       await reportService.escalateReport(reportId);
-      
+
       notificationService.addNotification({
         type: 'success',
         title: 'Laporan Dieskalasi',
         message: 'Laporan berhasil dieskalasi ke tingkat lebih tinggi',
       });
-      
+
       loadEscalatedReports();
     } catch (error) {
       console.error('Error escalating report:', error);
@@ -64,23 +62,23 @@ const Escalation = () => {
 
   const getSLAStatus = (report) => {
     if (!report.sla_deadline) return { status: 'no-sla', label: 'Tidak Ada SLA' };
-    
+
     const now = new Date();
     const deadline = new Date(report.sla_deadline);
     const hoursRemaining = (deadline - now) / (1000 * 60 * 60);
-    
+
     if (report.is_escalated) {
       return { status: 'escalated', label: 'Sudah Dieskalasi' };
     }
-    
+
     if (hoursRemaining < 0) {
       return { status: 'breached', label: `Terlambat ${Math.abs(Math.round(hoursRemaining))} jam` };
     }
-    
+
     if (hoursRemaining < 24) {
       return { status: 'warning', label: `Sisa ${Math.round(hoursRemaining)} jam` };
     }
-    
+
     return { status: 'ok', label: `Sisa ${Math.round(hoursRemaining / 24)} hari` };
   };
 

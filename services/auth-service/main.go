@@ -22,12 +22,10 @@ var db *gorm.DB
 
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 
-// isValidEmail validates email format
 func isValidEmail(email string) bool {
 	return emailRegex.MatchString(email)
 }
 
-// isValidPassword checks password strength
 func isValidPassword(password string) (bool, string) {
 	if len(password) < 8 {
 		return false, "Password must be at least 8 characters"
@@ -38,7 +36,6 @@ func isValidPassword(password string) (bool, string) {
 	return true, ""
 }
 
-// isValidNIK validates Indonesian NIK format (16 digits)
 func isValidNIK(nik string) bool {
 	if len(nik) != 16 {
 		return false
@@ -121,31 +118,26 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate required fields
 	if input.Email == "" || input.Password == "" || input.Name == "" {
 		response.Error(w, http.StatusBadRequest, "Email, Password, and Name are required", "")
 		return
 	}
 
-	// Validate email format
 	if !isValidEmail(input.Email) {
 		response.Error(w, http.StatusBadRequest, "Invalid email format", "")
 		return
 	}
 
-	// Validate password strength
 	if valid, msg := isValidPassword(input.Password); !valid {
 		response.Error(w, http.StatusBadRequest, msg, "")
 		return
 	}
 
-	// Validate name length
 	if len(strings.TrimSpace(input.Name)) < 3 {
 		response.Error(w, http.StatusBadRequest, "Name must be at least 3 characters", "")
 		return
 	}
 
-	// Validate NIK if provided
 	if input.NIK != "" && !isValidNIK(input.NIK) {
 		response.Error(w, http.StatusBadRequest, "NIK must be 16 digits", "")
 		return
@@ -181,7 +173,6 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		Department: "general",
 	}
 
-	// Save user to database
 	if err := db.Create(&newUser).Error; err != nil {
 		log.Printf("[ERROR] Failed to save user to database: %v", err)
 		response.Error(w, http.StatusInternalServerError, "Failed to save user", "")
@@ -276,14 +267,12 @@ func meHandler(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, http.StatusOK, "User profile fetched", user)
 }
 
-// healthCheckHandler returns service health status
 func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	health := map[string]interface{}{
 		"status":  "UP",
 		"service": "auth-service",
 	}
 
-	// Check database connectivity
 	sqlDB, err := db.DB()
 	if err != nil || sqlDB.Ping() != nil {
 		health["status"] = "DOWN"
@@ -298,7 +287,6 @@ func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(health)
 }
 
-// metricsHandler returns basic metrics for monitoring
 func metricsHandler(w http.ResponseWriter, r *http.Request) {
 	var totalUsers int64
 	db.Model(&models.User{}).Count(&totalUsers)

@@ -7,7 +7,6 @@ import (
 	"time"
 )
 
-// logging strcuture
 type LogEntry struct {
 	Timestamp string `json:"timestamp"`
 	TraceID   string `json:"trace_id,omitempty"`
@@ -20,7 +19,6 @@ type LogEntry struct {
 	Error     string `json:"error,omitempty"`
 }
 
-// LoggerMiddleware logs HTTP requests with trace correlation
 func LoggerMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -31,7 +29,7 @@ func LoggerMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(rw, r)
 
 		duration := time.Since(start)
-		
+
 		LogRequest(traceID, r.Method, r.URL.Path, rw.statusCode, duration)
 	})
 }
@@ -57,7 +55,6 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 	return rw.ResponseWriter.Write(b)
 }
 
-// LogRequest with trace correlation
 func LogRequest(traceID, method, path string, statusCode int, duration time.Duration) {
 	entry := LogEntry{
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
@@ -69,11 +66,10 @@ func LogRequest(traceID, method, path string, statusCode int, duration time.Dura
 		Status:    statusCode,
 		Duration:  duration.String(),
 	}
-	
+
 	logJSON(entry)
 }
 
-// LogError with trace correlation
 func LogError(traceID, message string, err error) {
 	entry := LogEntry{
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
@@ -81,15 +77,14 @@ func LogError(traceID, message string, err error) {
 		Level:     "ERROR",
 		Message:   message,
 	}
-	
+
 	if err != nil {
 		entry.Error = err.Error()
 	}
-	
+
 	logJSON(entry)
 }
 
-// LogInfo with trace correlation
 func LogInfo(traceID, message string) {
 	entry := LogEntry{
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
@@ -97,11 +92,10 @@ func LogInfo(traceID, message string) {
 		Level:     "INFO",
 		Message:   message,
 	}
-	
+
 	logJSON(entry)
 }
 
-// logJSON outputs
 func logJSON(entry LogEntry) {
 	jsonBytes, err := json.Marshal(entry)
 	if err != nil {

@@ -6,7 +6,6 @@ import (
 	"citizen-reporting-system/pkg/response"
 )
 
-// RequireRole ensures the authenticated user has one of the allowed roles.
 func RequireRole(allowedRoles ...string) func(http.Handler) http.Handler {
 	allowed := make(map[string]bool, len(allowedRoles))
 	for _, r := range allowedRoles {
@@ -31,7 +30,6 @@ func RequireRole(allowedRoles ...string) func(http.Handler) http.Handler {
 	}
 }
 
-// RequireAccessRole ensures the authenticated user has the specified access role.
 func RequireAccessRole(accessRole string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

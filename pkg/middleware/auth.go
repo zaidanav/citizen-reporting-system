@@ -72,12 +72,10 @@ func AuthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// OptionalAuthMiddleware allows requests without auth, but parses token if present
 func OptionalAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 
-		// If no auth header, continue without user context
 		if authHeader == "" {
 			next.ServeHTTP(w, r)
 			return
@@ -85,7 +83,6 @@ func OptionalAuthMiddleware(next http.Handler) http.Handler {
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		if tokenString == authHeader {
-			// Invalid format, but allow request to continue
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -97,7 +94,6 @@ func OptionalAuthMiddleware(next http.Handler) http.Handler {
 			return getJWTSecret(), nil
 		})
 
-		// If token is valid, add claims to context
 		if err == nil {
 			if claims, ok := token.Claims.(*UserClaims); ok && token.Valid {
 				ctx := context.WithValue(r.Context(), UserContextKey, claims)
@@ -106,7 +102,6 @@ func OptionalAuthMiddleware(next http.Handler) http.Handler {
 			}
 		}
 
-		// Token invalid or expired, continue without user context
 		next.ServeHTTP(w, r)
 	})
 }

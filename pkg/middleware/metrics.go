@@ -11,7 +11,6 @@ import (
 )
 
 var (
-	// HTTP request counter by method, path, and status
 	httpRequestsTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "http_requests_total",
@@ -20,7 +19,6 @@ var (
 		[]string{"method", "path", "status"},
 	)
 
-	// HTTP request duration histogram
 	httpRequestDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "http_request_duration_seconds",
@@ -30,7 +28,6 @@ var (
 		[]string{"method", "path", "status"},
 	)
 
-	// In-flight requests gauge
 	httpRequestsInProgress = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "http_requests_in_progress",
@@ -38,7 +35,6 @@ var (
 		},
 	)
 
-	// Service uptime
 	serviceUptime = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: "service_uptime_seconds",
@@ -49,7 +45,6 @@ var (
 	metricsRegistered = false
 )
 
-// RegisterMetrics registers Prometheus metrics (call once at startup)
 func RegisterMetrics() {
 	if !metricsRegistered {
 		prometheus.MustRegister(httpRequestsTotal)
@@ -58,7 +53,6 @@ func RegisterMetrics() {
 		prometheus.MustRegister(serviceUptime)
 		metricsRegistered = true
 
-		// Start uptime counter
 		go func() {
 			ticker := time.NewTicker(1 * time.Second)
 			defer ticker.Stop()
@@ -69,7 +63,6 @@ func RegisterMetrics() {
 	}
 }
 
-// normalizePath for metrics
 func normalizePath(path string) string {
 	parts := strings.Split(path, "/")
 	for i, part := range parts {
@@ -78,17 +71,15 @@ func normalizePath(path string) string {
 		}
 	}
 	normalized := strings.Join(parts, "/")
-	
+
 	if len(normalized) > 100 {
 		normalized = normalized[:100]
 	}
 	return normalized
 }
 
-// MetricsMiddleware collects Prometheus metrics for HTTP requests
 func MetricsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Skip metrics collection for the metrics endpoint itself
 		if r.URL.Path == "/metrics" {
 			next.ServeHTTP(w, r)
 			return
@@ -98,16 +89,13 @@ func MetricsMiddleware(next http.Handler) http.Handler {
 		httpRequestsInProgress.Inc()
 		defer httpRequestsInProgress.Dec()
 
-		// Wrap response writer to capture status code (use logger's responseWriter)
 		rw := &responseWriter{
 			ResponseWriter: w,
 			statusCode:     http.StatusOK,
 		}
 
-		// Process request
 		next.ServeHTTP(rw, r)
 
-		// Record metrics
 		duration := time.Since(start).Seconds()
 		path := normalizePath(r.URL.Path)
 		status := strconv.Itoa(rw.statusCode)
@@ -117,7 +105,6 @@ func MetricsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// GetMetricsHandler returns the Prometheus HTTP handler
 func GetMetricsHandler() http.Handler {
 	return promhttp.Handler()
 }

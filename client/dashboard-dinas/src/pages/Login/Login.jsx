@@ -29,16 +29,15 @@ const Login = ({ setAuth }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!formData.email || !formData.password) {
       setError('Email dan password wajib diisi');
       return;
     }
-    
+
     setLoading(true);
-    
+
     try {
-      // Call real auth API
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
@@ -66,10 +65,10 @@ const Login = ({ setAuth }) => {
         department: apiDepartment || department,
         access_role: access_role || 'operational',
       };
-      
+
       localStorage.setItem('admin_token', token);
       localStorage.setItem('admin_user', JSON.stringify(user));
-      
+
       setAuth(true);
       navigate('/dashboard');
     } catch (error) {
@@ -87,16 +86,16 @@ const Login = ({ setAuth }) => {
           <h1 className="admin-login-logo">Dashboard Dinas</h1>
           <p className="admin-login-tagline">Sistem Pelaporan Warga Kota</p>
         </div>
-        
+
         <div className="admin-login-card">
           <h2 className="admin-login-title">Login Administrator</h2>
-          
+
           {error && (
             <div className="admin-login-error">
               {error}
             </div>
           )}
-          
+
           <form onSubmit={handleSubmit} className="admin-login-form">
             <div className="admin-form-group">
               <label htmlFor="email" className="admin-form-label">
@@ -113,7 +112,7 @@ const Login = ({ setAuth }) => {
                 required
               />
             </div>
-            
+
             <div className="admin-form-group">
               <label htmlFor="password" className="admin-form-label">
                 Password
@@ -147,7 +146,7 @@ const Login = ({ setAuth }) => {
                 ))}
               </select>
             </div>
-            
+
             <button
               type="submit"
               className="admin-login-btn"

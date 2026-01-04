@@ -11,7 +11,7 @@ const Feed = () => {
   const navigate = useNavigate();
   const addNotification = useNotificationStore((state) => state.addNotification);
   const lastReportStatusUpdate = useNotificationStore((state) => state.lastReportStatusUpdate);
-  
+
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -38,40 +38,37 @@ const Feed = () => {
     try {
       setLoading(true);
       const reportsData = await reportService.getPublicReports(page, 20);
-      
+
       console.log('[Feed] Reports loaded:', reportsData);
       const reports = Array.isArray(reportsData) ? reportsData : [];
-      
+
       if (page === 1) {
         setReports(reports);
       } else {
         setReports((prev) => [...prev, ...reports]);
       }
-      
-      // For pagination: assume has more if we got full page
+
       setHasMore(reports.length === 20);
     } catch (error) {
       console.error('[Feed] Error loading reports:', error);
-      
+
       addNotification({
         type: 'error',
         title: 'Gagal Memuat Laporan',
         message: 'Terjadi kesalahan saat memuat feed',
       });
-      setReports([]); // Clear reports on error
+      setReports([]);
     } finally {
       setLoading(false);
     }
   };
 
   const handleUpvote = async (reportId, hasUpvoted) => {
-    // Prevent multiple simultaneous upvotes
     if (upvotingIds.has(reportId)) return;
-    
+
     setUpvotingIds((prev) => new Set([...prev, reportId]));
-    
+
     try {
-      // Optimistic UI update
       setReports((prev) =>
         prev.map((report) =>
           report.id === reportId
@@ -83,14 +80,13 @@ const Feed = () => {
             : report
         )
       );
-      
-      // Call backend API
+
       if (hasUpvoted) {
         await reportService.removeUpvote(reportId);
       } else {
         await reportService.upvoteReport(reportId);
       }
-      
+
       addNotification({
         type: 'success',
         title: hasUpvoted ? 'Dukungan Dibatalkan' : 'Laporan Didukung',
@@ -98,8 +94,7 @@ const Feed = () => {
       });
     } catch (error) {
       console.error('Error upvoting report:', error);
-      
-      // Revert optimistic update on error
+
       setReports((prev) =>
         prev.map((report) =>
           report.id === reportId
@@ -111,7 +106,7 @@ const Feed = () => {
             : report
         )
       );
-      
+
       addNotification({
         type: 'error',
         title: 'Gagal Memberikan Dukungan',
@@ -142,7 +137,7 @@ const Feed = () => {
           <p className="feed-subtitle">Lihat dan dukung laporan warga lainnya</p>
         </div>
       </div>
-      
+
       <div className="container">
         {loading && page === 1 ? (
           <div className="feed-loading">
@@ -167,7 +162,7 @@ const Feed = () => {
                 isUpvoting={upvotingIds.has(report.id)}
               />
             ))}
-            
+
             {hasMore && (
               <div className="feed-load-more">
                 <Button
@@ -203,7 +198,7 @@ const ReportCard = ({ report, onUpvote, isUpvoting }) => {
     isAnonymous,
     createdAt,
   } = report;
-  
+
   const displayAuthorName = authorName || reporterName || 'Pengguna';
 
   const formatDate = (dateString) => {
@@ -213,7 +208,7 @@ const ReportCard = ({ report, onUpvote, isUpvoting }) => {
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
-    
+
     if (diffMins < 60) {
       return `${diffMins} menit yang lalu`;
     } else if (diffHours < 24) {
@@ -241,24 +236,24 @@ const ReportCard = ({ report, onUpvote, isUpvoting }) => {
         </div>
         <StatusBadge status={status} />
       </div>
-      
+
       <div className="report-card__body">
         <h3 className="report-card__title">{title}</h3>
-        
+
         <div className="report-card__info">
           <span className="report-card__category">Kategori: {category}</span>
           <span className="report-card__location">Lokasi: {location}</span>
         </div>
-        
+
         <p className="report-card__description">{description}</p>
-        
+
         {imageUrl && (
           <div className="report-card__image">
             <img src={imageUrl} alt={title} />
           </div>
         )}
       </div>
-      
+
       <div className="report-card__footer">
         <button
           className={`upvote-btn ${hasUpvoted ? 'upvote-btn--active' : ''} ${isUpvoting ? 'upvote-btn--loading' : ''}`}

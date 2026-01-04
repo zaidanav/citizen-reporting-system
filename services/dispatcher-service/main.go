@@ -22,10 +22,10 @@ type ReportEvent struct {
 	ID          string    `json:"id"`
 	Title       string    `json:"title"`
 	Description string    `json:"description"`
-	Category    string    `json:"category"`      // Sampah, Jalan, Keamanan
-	IsAnonymous bool      `json:"is_anonymous"`  // Anonim or Not
-	ReporterID  string    `json:"reporter_id"`   // NIK/User ID
-	Reporter    string    `json:"reporter_name"` // Nama Pe-Report
+	Category    string    `json:"category"`
+	IsAnonymous bool      `json:"is_anonymous"`
+	ReporterID  string    `json:"reporter_id"`
+	Reporter    string    `json:"reporter_name"`
 	CreatedAt   time.Time `json:"created_at"`
 }
 
@@ -38,7 +38,6 @@ type ForwardRequest struct {
 }
 
 func main() {
-	// Optional HTTP receiver (mock external endpoint for manual forwarding)
 	httpPort := os.Getenv("DISPATCHER_HTTP_PORT")
 	if httpPort == "" {
 		httpPort = "8085"
@@ -80,7 +79,6 @@ func main() {
 			return
 		}
 
-		// Use existing simulation logic.
 		report := req.Report
 		if report.IsAnonymous {
 			report.Reporter = "ANONYMOUS"
@@ -105,10 +103,8 @@ func main() {
 		})
 	})
 
-	// Add metrics endpoint
 	mux.Handle("/metrics", middleware.GetMetricsHandler())
 
-	// Apply middleware chain
 	handler := middleware.TraceMiddleware(
 		middleware.MetricsMiddleware(
 			middleware.LoggerMiddleware(mux),
@@ -124,7 +120,6 @@ func main() {
 		}
 	}()
 
-	// Connect to RabbitMQ
 	amqpURI := fmt.Sprintf("amqp://%s:%s@%s:%s/",
 		os.Getenv("RABBITMQ_USER"),
 		os.Getenv("RABBITMQ_PASS"),
@@ -144,21 +139,18 @@ func main() {
 
 	log.Println("✅ Dispatcher Service Connected to RabbitMQ!")
 
-	// Listen to Report Queue
 	queueName := "report_queue"
 	msgs, err := queue.ConsumeMessages(ch, queueName)
 	if err != nil {
 		log.Fatalf("❌ Failed to consume queue: %v", err)
 	}
 
-	// Infinite loop to process messages
 	forever := make(chan bool)
 
 	go func() {
 		for d := range msgs {
 			log.Printf("📥 Received New Message: %s", d.Body)
 
-			// Parse JSON
 			var report ReportEvent
 			err := json.Unmarshal(d.Body, &report)
 			if err != nil {
@@ -167,14 +159,12 @@ func main() {
 				continue
 			}
 
-			// Anonymization (Privacy Protection)
 			if report.IsAnonymous {
 				report.Reporter = "ANONYMOUS"
 				report.ReporterID = "***HIDDEN***"
 				log.Println("🔒 Anonymous Mode Detected: Identity hidden.")
 			}
 
-			// Routing to Department (Business Logic)
 			var routeErr error
 			switch report.Category {
 			case "Sampah":
@@ -193,7 +183,6 @@ func main() {
 				continue
 			}
 
-			// Do not auto-bump status; leave as PENDING until admin processes it
 
 			log.Println("---------------------------------------------------")
 		}
@@ -203,14 +192,11 @@ func main() {
 	<-forever
 }
 
-// Forwarding to Department
 func sendToDepartment(r ReportEvent, departmentName string) error {
 	log.Printf("🚀 [ROUTING] Forwarding report '%s' to: >> %s <<", r.Title, departmentName)
 
-	// Simulate External API Call Latency
 	time.Sleep(time.Duration(rand.Intn(500)+200) * time.Millisecond)
 
-	// Simulate Failure (e.g. if Title contains "FAIL" or "ERROR")
 	if strings.Contains(strings.ToUpper(r.Title), "FAIL") {
 		return fmt.Errorf("external API timeout/error for %s", departmentName)
 	}
@@ -240,14 +226,13 @@ func updateReportStatus(id, status, baseURL string) {
 
 func moveToDLQ(ch *amqp.Channel, body []byte, reason string) {
 	dlqName := "report_dlq"
-	// Ensure queue exists
 	_, err := ch.QueueDeclare(
-		dlqName, // name
-		true,    // durable
-		false,   // delete when unused
-		false,   // exclusive
-		false,   // no-wait
-		nil,     // arguments
+		dlqName,
+		true,
+		false,
+		false,
+		false,
+		nil,
 	)
 	if err != nil {
 		log.Printf("❌ Failed to declare DLQ: %v", err)
@@ -255,10 +240,10 @@ func moveToDLQ(ch *amqp.Channel, body []byte, reason string) {
 	}
 
 	err = ch.Publish(
-		"",      // exchange
-		dlqName, // routing key
-		false,   // mandatory
-		false,   // immediate
+		"",
+		dlqName,
+		false,
+		false,
 		amqp.Publishing{
 			ContentType: "application/json",
 			Body:        body,

@@ -15,10 +15,8 @@ function App() {
     return !!localStorage.getItem('admin_token');
   });
 
-  // Subscribe to real-time notifications
   useNotificationSubscription();
 
-  // Get user's access role
   const accessRole = getAccessRoleFromStorage();
   const isStrategic = accessRole === 'strategic';
 
@@ -32,7 +30,7 @@ function App() {
         <Route path="/login" element={
           isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login setAuth={setIsAuthenticated} />
         } />
-        
+
         <Route path="/" element={
           isAuthenticated ? <Layout setAuth={setIsAuthenticated} /> : <Navigate to="/login" replace />
         }>
@@ -49,7 +47,7 @@ function App() {
             isSuperAdmin ? <Performance /> : <Navigate to="/dashboard" replace />
           } />
         </Route>
-        
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
